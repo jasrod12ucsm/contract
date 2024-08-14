@@ -1,0 +1,7 @@
+
+[workspace]
+
+members= [ "apps/auth", "apps/location", "bod_models","common"]
+
+
+resolver = "2"

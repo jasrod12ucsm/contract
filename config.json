@@ -1,0 +1,11 @@
+{
+  "SALT_KEY": [
+    25, 92, 86, 80, 151, 7, 17, 206, 119, 46, 40, 226, 13, 103, 46, 135
+  ],
+  "SECRET_KEY": "Hdsadonas@fdnoSNFIOFNb3219fdujiadsfcxgDS",
+  "DATABASE_URL": "mongodb+srv://jason:123546@cluster0.dt48hpt.mongodb.net/",
+  "AUTH_DATABASE": "bod",
+  "ENTERPRISE_EMAIL": "jasonrch2011@gmail.com",
+  "ENTERPRISE_PASSWORD": "mpzeggjmqxmofawm",
+  "SECRET_ADMIN_PASSWORD": "3*>@-Dgp>r8T^Fz$x`gN&XyGKRU5nTvO|z^xZgf~fD8L,3f5,.C4oXk4]UeymF3t+chEjQTPD^=H3-5$wYP^8aSH]@w_K8IY*<4uR"
+}
