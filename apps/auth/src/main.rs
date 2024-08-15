@@ -8,10 +8,10 @@ use bod_models::{
     },
     shared::schema::Schema,
 };
-use common::utils::ntex_private::{
+use common::{helpers::ip::ip_functions::IpFunctions, utils::ntex_private::{
     collection::collection::{Collection, CollectionFunctions},
     repository::public_repository::PublicRepository,
-};
+}};
 use modules::authentication::authentication_scope::authentication_route;
 use ntex::{
     http,
@@ -37,23 +37,22 @@ async fn main() -> std::io::Result<()> {
     let collections = vec![user_config, reset_token, country, user];
     let collections = Collection::new(client, collections);
     collections.run_indexes().await;
-
+    let ipv4=IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
 
     web::HttpServer::new(move || {
         web::App::new()
             .wrap(
                 Cors::new()
-                    .send_wildcard()
+                    .allowed_origin("*")
                     .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
-                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
                     .max_age(300)
                     .finish(),
             )
             .state(public_repository.clone())
             .service(scope("/auth").configure(authentication_route))
     })
-    .bind(("127.0.0.1", 8082))? //TODO poner puerto en envieronment
+    .bind((ipv4, 8082))? //TODO poner puerto en envieronment
     .run()
     .await
 }
