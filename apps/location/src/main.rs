@@ -2,12 +2,12 @@ use bod_models::{
     schemas::location::{country::country::CountrySchema, region::region::RegionSchema},
     shared::schema::Schema,
 };
-use common::{helpers::ip::ip_functions::IpFunctions, utils::ntex_private::{
+use common::{helpers::{env::env::ENV, ip::ip_functions::IpFunctions}, utils::ntex_private::{
     collection::collection::{Collection, CollectionFunctions},
     repository::public_repository::PublicRepository,
 }};
 use modules::{loc_country::loc_country_scope::loc_country_scope, loc_region::loc_region_scope};
-use ntex::{http, web::{self, scope}};
+use ntex::web::{self, scope};
 use ntex_cors::Cors;
 
 pub mod modules;
@@ -16,6 +16,9 @@ pub mod utils;
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
+
+     let port=ENV.get_int("LOCATION_PORT").expect("not port sended") as u16;
+
     //crear rpatron repository
     let public_repository = PublicRepository::connect()
         .await
@@ -44,7 +47,7 @@ async fn main() -> std::io::Result<()> {
             .service(scope("/country").configure(loc_country_scope))
             .service(scope("/region").configure(loc_region_scope::loc_region_scope))
     })
-    .bind((ipv4, 8080))? //TODO poner puerto en envieronment
+    .bind((ipv4, port))? //TODO poner puerto en envieronment
     .run()
     .await
 }

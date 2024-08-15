@@ -324,6 +324,7 @@ dependencies = [
  "derive_more",
  "futures",
  "fxhash",
+ "if-addrs",
  "jsonwebtoken",
  "lazy_static",
  "lettre",
@@ -1102,6 +1103,16 @@ checksum = "634d9b1461af396cad843f47fdba5597a4f9e6ddd4bfb6ff5d85028c25cb12f6"
 dependencies = [
  "unicode-bidi",
  "unicode-normalization",
+]
+
+[[package]]
+name = "if-addrs"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "411d86dc8244b35a0c4b9d8ee56511570ed046e7cdbf5055f9602036a7074063"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
