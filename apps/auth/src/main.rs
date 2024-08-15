@@ -1,16 +1,23 @@
-use bod_models::{schemas::{
-    config::{
-        reset_token::reset_token::ResetTokenSchema, user_config::user_config::UserConfigSchema,
+use bod_models::{
+    schemas::{
+        config::{
+            reset_token::reset_token::ResetTokenSchema, user_config::user_config::UserConfigSchema,
+        },
+        location::country::country::CountrySchema,
+        mst::user::user::UserSchema,
     },
-    location::country::country::CountrySchema,
-    mst::user::user::UserSchema,
-}, shared::schema::Schema};
+    shared::schema::Schema,
+};
 use common::utils::ntex_private::{
     collection::collection::{Collection, CollectionFunctions},
     repository::public_repository::PublicRepository,
 };
 use modules::authentication::authentication_scope::authentication_route;
-use ntex::web::{self, scope};
+use ntex::{
+    http,
+    web::{self, scope},
+};
+use ntex_cors::Cors;
 pub mod modules;
 pub mod utils;
 
@@ -35,6 +42,14 @@ async fn main() -> std::io::Result<()> {
 
     web::HttpServer::new(move || {
         web::App::new()
+            .wrap(
+                Cors::new()
+                    .send_wildcard()
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
+                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    .max_age(300)
+                    .finish(),
+            )
             .state(public_repository.clone())
             .service(scope("/auth").configure(authentication_route))
     })

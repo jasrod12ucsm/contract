@@ -21,4 +21,6 @@ jsonwebtoken = "9.3.0"
 reqwest = { version = "0.12.5", features = ["blocking", "json"] }
 common={path = "../../common"}
 bod_models={path = "../../bod_models"}
+ntex-cors = "2.0.0"
+
 

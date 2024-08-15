@@ -125,6 +125,7 @@ dependencies = [
  "lazy_static",
  "mongodb",
  "ntex",
+ "ntex-cors",
  "reqwest",
  "serde",
  "serde_json",
@@ -1240,6 +1241,7 @@ dependencies = [
  "lazy_static",
  "mongodb",
  "ntex",
+ "ntex-cors",
  "reqwest",
  "serde",
  "serde_json",
@@ -1503,6 +1505,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69a7e111d946bb915d712df496728ca2a120b1b5643f66c580f13023bce46fda"
 dependencies = [
  "ntex-bytes",
+]
+
+[[package]]
+name = "ntex-cors"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5240350681b4dab9bcbdbafdb7b25c526c069a9e298f06de00331cd3442311bf"
+dependencies = [
+ "derive_more",
+ "futures",
+ "ntex",
 ]
 
 [[package]]

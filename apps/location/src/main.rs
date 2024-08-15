@@ -1,12 +1,14 @@
-use bod_models::{schemas::location::{
-    country::country::CountrySchema, region::region::RegionSchema,
-}, shared::schema::Schema};
+use bod_models::{
+    schemas::location::{country::country::CountrySchema, region::region::RegionSchema},
+    shared::schema::Schema,
+};
 use common::utils::ntex_private::{
-        collection::collection::{Collection, CollectionFunctions},
-        repository::public_repository::PublicRepository,
-    };
+    collection::collection::{Collection, CollectionFunctions},
+    repository::public_repository::PublicRepository,
+};
 use modules::{loc_country::loc_country_scope::loc_country_scope, loc_region::loc_region_scope};
-use ntex::web::{self, scope};
+use ntex::{http, web::{self, scope}};
+use ntex_cors::Cors;
 
 pub mod modules;
 pub mod public;
@@ -31,6 +33,14 @@ async fn main() -> std::io::Result<()> {
 
     web::HttpServer::new(move || {
         web::App::new()
+            .wrap(
+                Cors::new()
+                    .send_wildcard()
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
+                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    .max_age(300)
+                    .finish(),
+            )
             .state(public_repository.clone())
             .service(scope("/country").configure(loc_country_scope))
             .service(scope("/region").configure(loc_region_scope::loc_region_scope))
