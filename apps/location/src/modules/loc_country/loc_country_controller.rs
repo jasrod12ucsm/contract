@@ -19,12 +19,10 @@ use ntex::web::{
 use crate::{
     public::models::{rest_country::RestCountries, secret_path::SecretPath},
     utils::{
-        country_repository::CountryRepository,
-        infraestructure::{
+        country_repository::CountryRepository, domain::rest_countries_datasource_trait::RestCountriesDataSourceTrait, infraestructure::{
             datasource::rest_countries_data_source::RestCountriesDataSource,
             repositories::rest_countries_repository::RestCountriesRepository,
-        },
-        user_repository::UserRepository,
+        }, user_repository::UserRepository
     },
 };
 

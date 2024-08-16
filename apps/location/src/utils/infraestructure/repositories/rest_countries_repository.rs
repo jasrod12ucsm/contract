@@ -1,6 +1,6 @@
 use common::public::errors::request_error::RequestError;
 
-use crate::{public::models::rest_country::RestCountries, utils::infraestructure::datasource::rest_countries_data_source::RestCountriesDataSource};
+use crate::{public::models::rest_country::RestCountries, utils::{domain::rest_countries_datasource_trait::RestCountriesDataSourceTrait, infraestructure::datasource::rest_countries_data_source::RestCountriesDataSource}};
 
 pub struct RestCountriesRepository{
     datasource:RestCountriesDataSource
