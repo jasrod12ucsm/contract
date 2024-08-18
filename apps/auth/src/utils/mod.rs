@@ -4,3 +4,4 @@ pub mod user_repository;
 pub mod country_repository;
 pub mod region_repository;
 pub mod jwt;
+pub mod email_template_repository;

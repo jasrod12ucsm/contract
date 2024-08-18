@@ -113,7 +113,7 @@ pub async fn singup_client(
             ))
         })?;
     session.start_transaction().await.unwrap();
-    
+
     //si encuentra el email verifica si esta authenticado, si lo esta regresa error, si no continuea con el codigo
     let country = country_repository
         .find_one(doc! {"code":country_code.clone()}, Some(&mut session))
@@ -124,7 +124,7 @@ pub async fn singup_client(
             Either::Right(UserError::CreateUserError("country not correct"))
         })?
         .ok_or_else(|| Either::Right(UserError::CreateUserError("")))?;
-   
+
     let find_region_document = doc! {"code":region_code.clone(), "countryId":country_code};
     let region = region_repository
         .find_one(find_region_document, Some(&mut session))
@@ -138,7 +138,6 @@ pub async fn singup_client(
             println!("result is none");
             Either::Right(UserError::CreateUserError("incorrect region"))
         })?;
-    println!("{}",email);
     let user_config = user_config_repository
         .find_one(doc! {"email":email.clone()}, None)
         .await
@@ -168,9 +167,8 @@ pub async fn singup_client(
             Some(&mut session),
         )
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             let _ = session.abort_transaction();
-            println!("{}", err);
             Either::Left(UserConfigError::CreateUserError(
                 "error on create user, aborting process",
             ))
@@ -247,11 +245,9 @@ pub async fn singup_client(
         code,
         user_config_inserted.id,
     );
-    println!("{:?}", reset_token_to_insert);
     let doc_insert_token = doc! {
         "$set":bson::to_bson(&reset_token_to_insert).unwrap()
     };
-    println!("{:?}", doc_insert_token);
     let _reset_token_insertion = reset_token_repository
         .find_one_and_update_with_upsert(
             doc! {"userId":user_inserted.id},
@@ -266,14 +262,16 @@ pub async fn singup_client(
                 "error updating token table",
             ))
         })?;
-    session.commit_transaction().await.map_err(|err| {
-        println!("{}", err);
+    session.commit_transaction().await.map_err(|_err| {
         Either::Right(UserError::CreateUserError("error commiting transaction"))
     })?;
     let data_to_return = UserId {
         user: user_inserted.id.to_string(),
         user_config_id: user_config_inserted.id.to_string(),
     };
+    
+
+    
     let html_content = format!(
         r#"
         <!DOCTYPE html>

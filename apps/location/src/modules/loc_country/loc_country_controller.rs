@@ -1,5 +1,6 @@
 use bod_models::schemas::location::country::{
-    country::Country, country_attributes::CountryAttributes, country_errors::CountryError, models::country_with_id::CountryWithId
+    country::Country, country_attributes::CountryAttributes, country_errors::CountryError,
+    models::country_with_id::CountryWithId,
 };
 use bson::{doc, oid::ObjectId};
 use common::{
@@ -22,7 +23,7 @@ use crate::{
         country_repository::CountryRepository, domain::rest_countries_datasource_trait::RestCountriesDataSourceTrait, infraestructure::{
             datasource::rest_countries_data_source::RestCountriesDataSource,
             repositories::rest_countries_repository::RestCountriesRepository,
-        }, user_repository::UserRepository
+        }, region_repository::RegionRepository, user_repository::UserRepository
     },
 };
 
@@ -64,7 +65,7 @@ pub async fn create_country(
         .ok_or_else(|| CountryError::CreateCountryError("cannot get country"))?;
     println!("{:?}", country);
     let country: Country = country.into();
-    let country:CountryAttributes=country.into();
+    let country: CountryAttributes = country.into();
     //actualiza si lo encuentras, si no upsert
     let document_to_insert_country = doc! {
         "$set": bson::to_bson(&country).unwrap(),
@@ -181,11 +182,58 @@ pub async fn get_all_countries(
     let mut countries_vector = vec![];
     while let Some(country) = countries.next().await {
         if country.is_err() {
-            return Err(CountryError::GetCountryError("code error, contact with tecnical team"));
-
+            return Err(CountryError::GetCountryError(
+                "code error, contact with tecnical team",
+            ));
         }
         let country = country.unwrap();
         countries_vector.push(country);
     }
     Ok(JsonAdvanced(countries_vector))
+}
+
+//genera el getCountryForRegion
+#[web::get("region/{id}")]
+pub async fn get_country_by_region_id(
+    path: Path<IdPath>,
+    repo: State<PublicRepository>,
+) -> Result<JsonAdvanced<Vec<CountryWithId>>, CountryError> {
+    let region_id = ObjectId::parse_str(path.id())
+        .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
+    let country_repository: CountryRepository = repo
+        .get_repository::<CountryRepository>()
+        .await
+        .map_err(|_| {
+            CountryError::GetCountryError("internal error, comunicate with programmers")
+        })?;
+   //trae region repository
+    let region_repository: RegionRepository = repo
+        .get_repository::<RegionRepository>()
+        .await
+        .map_err(|_| {
+            CountryError::GetCountryError("internal error, comunicate with programmers")
+        })?;
+    //busca region por id
+    let region = region_repository
+        .find_one(doc! {"code":region_id}, None)
+        .await
+        .map_err(|_| CountryError::GetCountryError("internal data failure"))?
+        .ok_or_else(|| CountryError::GetCountryError("not exist region"))?;
+    //busca paises por region
+    let mut countries = country_repository
+        .find(doc! {"regionId":region.country_id})
+        .await
+        .map_err(|_| CountryError::GetCountryError("internal data failure"))?;
+    let mut countries_vector = vec![];
+    while let Some(country) = countries.next().await {
+        if country.is_err() {
+            return Err(CountryError::GetCountryError(
+                "code error, contact with tecnical team",
+            ));
+        }
+        let country = country.unwrap();
+        countries_vector.push(country);
+    }
+    Ok(JsonAdvanced(countries_vector))
+
 }
