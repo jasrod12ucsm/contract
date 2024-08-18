@@ -33,6 +33,8 @@ async fn main() -> std::io::Result<()> {
     collections.run_indexes().await;
      let ipv4=IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
+    //imprime el puerto y la ip
+    println!("http://{}:{}",ipv4,port);
 
     web::HttpServer::new(move || {
         web::App::new()
