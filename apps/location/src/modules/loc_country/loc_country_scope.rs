@@ -1,7 +1,7 @@
 use ntex::web::{scope, ServiceConfig};
 
 use super::loc_country_controller::{
-    create_country, get_all_countries, get_country_by_code, get_country_by_id, get_country_by_user_id
+    create_country, get_all_countries, get_country_by_code, get_country_by_id, get_country_by_region_id, get_country_by_user_id
 };
 
 pub fn loc_country_scope(configure: &mut ServiceConfig) {
@@ -14,6 +14,7 @@ pub fn loc_country_scope(configure: &mut ServiceConfig) {
             .service(get_country_by_user_id)
             .service(get_country_by_id)
             .service(get_country_by_code)
+            .service(get_country_by_region_id)
             
     );
 }
