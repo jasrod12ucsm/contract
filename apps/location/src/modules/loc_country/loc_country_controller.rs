@@ -198,8 +198,7 @@ pub async fn get_country_by_region_id(
     path: Path<IdPath>,
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<Vec<CountryWithId>>, CountryError> {
-    let region_id = ObjectId::parse_str(path.id())
-        .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
+    let region_id = path.id();
     let country_repository: CountryRepository = repo
         .get_repository::<CountryRepository>()
         .await
