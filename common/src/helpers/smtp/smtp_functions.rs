@@ -15,7 +15,6 @@ impl SmtpFunctions {
     pub fn send_email(to: &str, subject: &str, body: &str) -> Result<(), &'static str> {
         //let email
         //TODO ponerlo en el env
-        println!("sending email");
         let to_address_data = to.split("@").collect::<Vec<&str>>();
         let to_name = to_address_data.get(0).ok_or("error to get address name")?;
         let to_domain = to_address_data
@@ -49,8 +48,7 @@ impl SmtpFunctions {
             .build();
         match mailer.send(&email) {
             Ok(_) => return Ok(()),
-            Err(err) => {
-                println!("{}", err);
+            Err(_err) => {
                 return Err("error sending email");
             }
         }

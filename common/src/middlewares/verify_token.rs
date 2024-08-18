@@ -57,7 +57,6 @@ where
                token 
             }
             Err(err) => {
-                println!("err: {:?}", err);
                 return Ok(req.into_response(
                     Response::InternalServerError().body(format!("invalid token: {}", err)),
                 ));
@@ -66,7 +65,6 @@ where
         let uid=decoded_token.claims.user();
 
         req.extensions_mut().insert::<UserWithId>(uid.to_owned());
-        println!("{:?}",req.extensions().get::<String>());
         let res = ctx.call(&self.service, req).await?;
         Ok(res)
     }

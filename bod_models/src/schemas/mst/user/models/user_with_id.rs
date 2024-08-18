@@ -40,6 +40,7 @@ pub struct UserWithId {
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
+    pub birthdate: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -56,6 +57,7 @@ impl std::fmt::Display for UserWithId {
 impl UserWithId{
     pub fn from_user_and_id(user:User,id:ObjectId)->Self{
         Self{
+            birthdate:user.birthdate,
             region:user.region,
             country:user.country,
             lvl:user.lvl,

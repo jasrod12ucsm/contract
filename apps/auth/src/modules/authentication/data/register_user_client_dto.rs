@@ -19,5 +19,6 @@ pub struct RegisterUserClientDto {
     #[serde(rename="countryCode")]
     pub country_code:String,
     #[serde(rename="regionCode")]
-    pub region_code:String
+    pub region_code:String,
+    pub birthdate:String
 }

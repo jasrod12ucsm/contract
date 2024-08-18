@@ -51,8 +51,7 @@ pub async fn create_country(
     let rest_countries: RestCountries = rest_countries_repository
         .get_country_by_name(name)
         .await
-        .map_err(|err| {
-        println!("{}", err);
+        .map_err(|_err| {
         CountryError::CreateCountryError("cannot get that country for restcountries")
     })?;
     //creamos repositorio de countries
@@ -63,7 +62,6 @@ pub async fn create_country(
     let country = rest_countries
         .get(0)
         .ok_or_else(|| CountryError::CreateCountryError("cannot get country"))?;
-    println!("{:?}", country);
     let country: Country = country.into();
     let country: CountryAttributes = country.into();
     //actualiza si lo encuentras, si no upsert
@@ -104,16 +102,13 @@ pub async fn get_country_by_user_id(
     //busqueda de usuario con el path id
     let user_id = ObjectId::parse_str(path.id())
         .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
-    println!("{:?}", user_id);
     let user = user_repsoitory
         .find_one(doc! {"_id":user_id}, None)
         .await
-        .map_err(|err| {
-            println!("{}", err);
+        .map_err(|_err| {
             CountryError::GetCountryError("internal data failure")
         })?
         .ok_or_else(|| CountryError::GetCountryError("not exist user"))?;
-    println!("{:?}", user.country.code);
     let country = country_repository
         .find_one(doc! {"code":user.country.code}, None)
         .await
@@ -133,7 +128,6 @@ pub async fn get_country_by_id(
         .map_err(|_| {
             CountryError::GetCountryError("internal error, comunicate with programmers")
         })?;
-    println!("{}", path.id());
     let country_id = ObjectId::parse_str(path.id())
         .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
     let country = country_repository
@@ -168,7 +162,6 @@ pub async fn get_country_by_code(
 pub async fn get_all_countries(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<Vec<CountryWithId>>, CountryError> {
-    println!("no data");
     let country_repository: CountryRepository = repo
         .get_repository::<CountryRepository>()
         .await
@@ -219,8 +212,9 @@ pub async fn get_country_by_region_id(
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?
         .ok_or_else(|| CountryError::GetCountryError("not exist region"))?;
     //busca paises por region
+    
     let mut countries = country_repository
-        .find(doc! {"regionId":region.country_id})
+        .find(doc! {"code":region.country_id})
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?;
     let mut countries_vector = vec![];

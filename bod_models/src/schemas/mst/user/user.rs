@@ -35,6 +35,7 @@ pub struct User {
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
+    pub birthdate: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -48,9 +49,11 @@ impl User {
         phone: String,
         address: String,
         country:ShortCountry,
-        region:Region
+        region:Region,
+        birthdate: String,
     ) -> User {
         User {
+            birthdate,
             region,
             country,
             lvl:0,//client lvl

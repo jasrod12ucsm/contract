@@ -1,4 +1,6 @@
-use std::str::FromStr;
+use std::
+    str::FromStr
+;
 
 use crate::{
     modules::authentication::{
@@ -12,7 +14,8 @@ use crate::{
         },
     },
     utils::{
-        country_repository::CountryRepository, jwt::generate::generate_jwt,
+        country_repository::CountryRepository, email_functions::EmailFunctions,
+        email_template_repository::EmailTemplateRepository, jwt::generate::generate_jwt,
         region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
         user_config_repository::UserConfigRepository, user_repository::UserRepository,
     },
@@ -40,7 +43,7 @@ use bod_models::{
     },
     shared::jwt::claims::DefaultClaims,
 };
-use bson::oid::ObjectId;
+use bson::{oid::ObjectId, DateTime};
 use common::{
     helpers::{
         env::env::ENV, password::password_functions::PasswordFunctions,
@@ -78,6 +81,7 @@ pub async fn singup_client(
         identification_type,
         country_code,
         region_code,
+        birthdate
     } = register_dto.into_inner();
     //iniciamos repositorios
     let user_config_repository: UserConfigRepository = repo
@@ -101,6 +105,11 @@ pub async fn singup_client(
         .get_repository::<RegionRepository>()
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
+    //trae email template repository
+    let email_template_repository = repo
+        .get_repository::<EmailTemplateRepository>()
+        .await
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
     //creamos session para la transaccion
     let mut session = repo
         .get_client()
@@ -118,8 +127,7 @@ pub async fn singup_client(
     let country = country_repository
         .find_one(doc! {"code":country_code.clone()}, Some(&mut session))
         .await
-        .map_err(|err| {
-            println!("{}", err);
+        .map_err(|_| {
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("country not correct"))
         })?
@@ -129,20 +137,17 @@ pub async fn singup_client(
     let region = region_repository
         .find_one(find_region_document, Some(&mut session))
         .await
-        .map_err(|err| {
-            println!("{}", err);
+        .map_err(|_| {
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("internal error"))
         })?
         .ok_or_else(|| {
-            println!("result is none");
             Either::Right(UserError::CreateUserError("incorrect region"))
         })?;
     let user_config = user_config_repository
         .find_one(doc! {"email":email.clone()}, None)
         .await
-        .map_err(|err| {
-            println!("{}", err);
+        .map_err(|_| {
             Either::Left(UserConfigError::CreateUserError("error finding email"))
         })?;
     if user_config.is_some() {
@@ -210,6 +215,7 @@ pub async fn singup_client(
         address,
         country.into(),
         region.into(),
+        birthdate
     );
     let doc_insert_user = doc! {
         "$set":bson::to_bson(&user).unwrap()
@@ -255,44 +261,62 @@ pub async fn singup_client(
             Some(&mut session),
         )
         .await
-        .map_err(|err| {
-            println!("{}", err);
+        .map_err(|_| {
             let _ = session.abort_transaction();
             Either::Left(UserConfigError::CreateUserError(
                 "error updating token table",
             ))
         })?;
-    session.commit_transaction().await.map_err(|_err| {
-        Either::Right(UserError::CreateUserError("error commiting transaction"))
-    })?;
+    session
+        .commit_transaction()
+        .await
+        .map_err(|_err| Either::Right(UserError::CreateUserError("error commiting transaction")))?;
     let data_to_return = UserId {
         user: user_inserted.id.to_string(),
         user_config_id: user_config_inserted.id.to_string(),
     };
-    
 
-    
-    let html_content = format!(
-        r#"
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <title>Código de Verificación</title>
-        </head>
-        <body>
-            <p>Hola,</p>
-            <p>Tu código de verificación es: <strong>{}</strong></p>
-            <p>Gracias,</p>
-            <p>El equipo de Soporte</p>
-        </body>
-        </html>
-        "#,
-        code
-    );
+    //usa el email template repository para buscar
+    let email_template = email_template_repository
+        .find_one(doc! {"templateName":"register"}, None)
+        .await
+        .map_err(|_| {
+            Either::Left(UserConfigError::CreateUserError(
+                "error finding email template",
+            ))
+        })?;
+    if email_template.is_none() {
+        return Err(Either::Left(UserConfigError::CreateUserError(
+            "no existe template",
+        )));
+    }
+    let mut complete_name = user_config_inserted.names;
+    complete_name.push_str(" ");
+    complete_name.push_str(&user_config_inserted.surnames);
+    let email_template_html = email_template.unwrap().html;
+    let code_str = &code.to_string();
+    let render_html = EmailFunctions::replace_placeholders(
+        email_template_html,
+        vec![
+            "Instant",
+            complete_name.as_str(),
+            format!(
+                "{}-{}",
+                &code_str[..3], // Primer parte del código (los primeros 3 dígitos)
+                &code_str[3..]
+            )
+            .as_str(),
+            "https://www.facebook.com",
+            "https://www.instagram.com",
+            "https://www.google.com",
+            "https://www.google.com",
+        ],
+    )
+    .replace("\\n", "")
+    .replace("\\\"", "\"");
     // Enviar el email de forma asincrónica sin bloquear la función principal
     tokio::spawn(async move {
-        let _ = SmtpFunctions::send_email(email.as_str(), "Enable Account", &html_content);
+        let _ = SmtpFunctions::send_email(email.as_str(), "Enable Account", &render_html);
     });
     Ok(JsonAdvanced(data_to_return))
 }
@@ -308,6 +332,11 @@ pub async fn resend_email(
     let id_path = path.id();
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
+        .await
+        .map_err(|_| ResetTokenError::GetTokenError)?;
+    //email template repository+
+    let email_template_repository = repo
+        .get_repository::<EmailTemplateRepository>()
         .await
         .map_err(|_| ResetTokenError::GetTokenError)?;
     let current_user = repo
@@ -335,29 +364,45 @@ pub async fn resend_email(
         .await
         .map_err(|_| ResetTokenError::GetTokenError)?;
     //ahora genera el html
-    let html_content = format!(
-        r#"
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <title>Código de Verificación</title>
-        </head>
-        <body>
-            <p>Hola,</p>
-            <p>Tu código de verificación es: <strong>{}</strong></p>
-            <p>Gracias,</p>
-            <p>El equipo de Soporte</p>
-        </body>
-        </html>
-        "#,
-        code
-    );
+
+    let email_template = email_template_repository
+        .find_one(doc! {"templateName":"register"}, None)
+        .await
+        .map_err(|_| {
+            ResetTokenError::GetTokenError
+        })?;
+    if email_template.is_none() {
+        return Err(ResetTokenError::GetTokenError);
+    }
+    let mut complete_name = current_user.user_config.names;
+    complete_name.push_str(" ");
+    complete_name.push_str(&current_user.user_config.surnames);
+    let email_template_html = email_template.unwrap().html;
+    let code_str = &code.to_string();
+    let render_html = EmailFunctions::replace_placeholders(
+        email_template_html,
+        vec![
+            "Instant",
+            complete_name.as_str(),
+            format!(
+                "{}-{}",
+                &code_str[..3], // Primer parte del código (los primeros 3 dígitos)
+                &code_str[3..]
+            )
+            .as_str(),
+            "https://www.facebook.com",
+            "https://www.instagram.com",
+            "https://www.google.com",
+            "https://www.google.com",
+        ],
+    )
+    .replace("\\n", "")
+    .replace("\\\"", "\"");
     // Enviar el email de forma asincrónica sin bloquear la función principal
     let email_sended = SmtpFunctions::send_email(
         current_user.user_config.email.as_str(),
         "Enable Account",
-        &html_content,
+        &render_html,
     );
     if email_sended.is_err() {
         return Ok(JsonAdvanced(EmailSended { ok: false }));
@@ -396,7 +441,17 @@ pub async fn authenticate(
     let token = token_register.unwrap();
     //pregunta por el codigo
     let AuthenticatePostCode { code } = code.into_inner();
-    println!("{}", token.auth_code);
+    //quiero validar que el code del token no se haya actualizado hace mas de dos minutos usando DATETIME DE MONGO
+    let current_time=DateTime::now();
+    let diff = current_time.checked_duration_since(token.updated_at);
+    if diff.is_none() {
+        return Err(UserConfigError::LoginUserError("Codigo expirado"));
+    }
+    //valida que la diferencia de tiempo no sea de ams de dos minutos para saguir
+    let diff = diff.unwrap();
+    if diff.as_secs() > 120 {
+        return Err(UserConfigError::LoginUserError("Codigo expirado"));
+    }
     if token.auth_code != code {
         return Err(UserConfigError::LoginUserError("Codigo incorrecto"));
     }
@@ -413,8 +468,7 @@ pub async fn authenticate(
     let actualized_register = user_config_repository
         .find_one_and_update_with_upsert(filter, update_doc, None)
         .await
-        .map_err(|error| {
-            println!("{}", error);
+        .map_err(|_| {
             UserConfigError::LoginUserError("Internal update error")
         })?;
     if actualized_register.is_none() {
@@ -500,7 +554,6 @@ pub async fn login_client(
                     .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
                     .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
 
-                println!("{:?}", _token_desencrypted);
                 return Ok(JsonAdvanced(user));
             }
             Err(err) => {
@@ -563,7 +616,6 @@ pub async fn renew(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<RenewResult>, ResetTokenError> {
     let id = ObjectId::from_str(id_path.id()).unwrap();
-    println!("ejecutandose");
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
@@ -605,7 +657,6 @@ pub async fn get_token(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<GetTokenResult>, ResetTokenError> {
     let id = ObjectId::from_str(id_path.id()).unwrap();
-    println!("ejecutandose");
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await

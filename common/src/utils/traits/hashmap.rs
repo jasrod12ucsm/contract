@@ -23,7 +23,6 @@ impl HashMapToStruct for HashMap<String, String> {
 
         let attributes = T::get_attributes(&T::default());
         let mut json_map: Map<String, Value> = Map::with_capacity(self.len());
-        println!("{:?}", self);
         for (key, value) in self {
             if !attributes.contains_key(key.as_str()) {
                 errors.push(format!("no existe el atributo {} en la estructura propuesta", key));

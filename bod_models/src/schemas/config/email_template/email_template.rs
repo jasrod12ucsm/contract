@@ -11,6 +11,7 @@ pub struct EmailTemplate {
     pub html: String,
     #[serde(rename="isDelete")]
     pub is_delete: bool,
+    #[serde(rename="updatedAt")]
     pub updated_at: DateTime,
 }
 
@@ -30,7 +31,7 @@ impl EmailTemplate {
 pub struct EmailTemplateSchema;
 impl BaseColleccionNames for EmailTemplate {
     fn get_collection_name() -> &'static str {
-        "cnf-email-templates"
+        "cnf-email-template"
     }
 
     fn get_database_name() -> &'static str {

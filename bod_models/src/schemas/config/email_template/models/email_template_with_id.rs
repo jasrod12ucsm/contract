@@ -10,5 +10,6 @@ pub struct EmailTemplateWithId {
     pub html: String,
     #[serde(rename="isDelete")]
     pub is_delete: bool,
+    #[serde(rename="updatedAt")]
     pub updated_at: DateTime,
 }
