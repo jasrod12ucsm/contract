@@ -69,11 +69,10 @@ pub async fn create_country(
         "$set": bson::to_bson(&country).unwrap(),
     };
     let country_inserted = country_repository
-        .find_one_and_update_with_upsert(
+        .find_one_and_update(
             doc! {"code":country.code},
             document_to_insert_country,
-            None,
-        )
+        ).upsert(true)
         .await
         .map_err(|_| CountryError::CreateCountryError("error creating country"))?
         .ok_or_else(|| CountryError::CreateCountryError("result of coutnry is none"))?;

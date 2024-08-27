@@ -14,8 +14,8 @@ pub struct UserConfigAttributes{
     pub password: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
 }
 
 impl UserConfigAttributes {
@@ -33,7 +33,7 @@ impl UserConfigAttributes {
             password,
             is_authenticated: false,
             is_active: true,
-            is_delete: false,
+            is_deleted: false,
         }
     }
 }

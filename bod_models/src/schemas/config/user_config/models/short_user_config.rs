@@ -23,7 +23,7 @@ impl From<UserConfigWithId> for ShortUserConfig {
             surnames: value.surnames,
             email: value.email,
             is_active: value.is_active,
-            is_delete: value.is_delete,
+            is_delete: value.is_deleted,
         }
     }
 }

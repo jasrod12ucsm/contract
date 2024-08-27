@@ -11,16 +11,19 @@ pub struct ShortCountry {
     pub currency_symbol: String,
      #[serde(rename = "isDelete")]
     pub is_delete: bool,
+    #[serde(rename = "isActive")]
+    pub is_active: bool,
 }
 
 impl From<CountryWithId> for ShortCountry{
     fn from(value: CountryWithId) -> Self {
         ShortCountry {
+            is_active:value.is_active,
             code: value.code,
             fullname: value.fullname,
             currency: value.currency,
             currency_symbol: value.currency_symbol,
-            is_delete: value.is_delete,
+            is_delete: value.is_deleted,
         }
     }
 }

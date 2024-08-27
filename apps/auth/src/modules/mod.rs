@@ -1,2 +1,2 @@
 pub mod authentication;
-pub mod mst_user;
+pub mod user;

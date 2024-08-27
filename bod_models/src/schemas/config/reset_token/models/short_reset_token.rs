@@ -11,8 +11,8 @@ pub struct ShortResetToken {
     #[serde(rename = "userId")]
     pub user_id: ObjectId,
     pub created: DateTime,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
 }
 
 impl From<ResetTokenWithId> for ShortResetToken {
@@ -23,7 +23,7 @@ impl From<ResetTokenWithId> for ShortResetToken {
             token: value.token,
             user_id: value.user_id,
             created: value.created,
-            is_delete: value.is_delete,
+            is_deleted: value.is_deleted,
         }
     }
 }

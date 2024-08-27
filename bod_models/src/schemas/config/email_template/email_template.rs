@@ -9,8 +9,8 @@ pub struct EmailTemplate {
     #[serde(rename="templateName")]
     pub template_name: String,
     pub html: String,
-    #[serde(rename="isDelete")]
-    pub is_delete: bool,
+    #[serde(rename="isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename="updatedAt")]
     pub updated_at: DateTime,
 }
@@ -18,11 +18,11 @@ pub struct EmailTemplate {
 
 
 impl EmailTemplate {
-    pub fn new(template_name: String, html: String, is_delete: bool, updated_at: DateTime) -> Self {
+    pub fn new(template_name: String, html: String, is_deleted: bool, updated_at: DateTime) -> Self {
         Self {
             html,
             template_name,
-            is_delete,
+            is_deleted,
             updated_at,
         }
     }

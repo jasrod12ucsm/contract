@@ -226,9 +226,10 @@ impl From<&RestCountry> for Country {
             currency_symbol,
             timezones: value.timezones.to_owned(),
             langs,
-            is_delete: false,
+            is_deleted: false,
             created_at: DateTime::now(),
             updated_at: DateTime::now(),
+            is_active:true
         }
     }
 }

@@ -28,7 +28,7 @@ impl From<UserConfigWithId> for UserConfigWithoutPassword {
             email: value.email,
             is_authenticated: value.is_authenticated,
             is_active: value.is_active,
-            is_delete: value.is_delete,
+            is_delete: value.is_deleted,
         }
     }
 }

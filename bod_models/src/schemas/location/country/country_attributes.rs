@@ -17,8 +17,10 @@ pub struct CountryAttributes {
     pub population: i64,
     pub flag: String,
     pub langs: Vec<String>,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
+    #[serde(rename = "isActive")]
+    pub is_active: bool,
 }
 impl CountryAttributes {
     pub fn new(
@@ -32,6 +34,8 @@ impl CountryAttributes {
         population: i64,
         langs: Vec<String>,
         flag: String,
+        is_deleted: bool,
+        is_active: bool,
     ) -> Self {
         Self {
             flag,
@@ -44,7 +48,8 @@ impl CountryAttributes {
             sub_region,
             population,
             langs,
-            is_delete: false,
+            is_deleted,
+            is_active,
         }
     }
 }
@@ -62,6 +67,8 @@ impl From<Country> for CountryAttributes {
             value.population,
             value.langs,
             value.flag,
+            value.is_deleted,
+            value.is_active,
         )
     }
 }

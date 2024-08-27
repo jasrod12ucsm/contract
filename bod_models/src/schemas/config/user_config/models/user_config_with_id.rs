@@ -14,8 +14,8 @@ pub struct UserConfigWithId {
     pub password: String,
     #[serde(rename="isActive")]
     pub is_active: bool,
-    #[serde(rename="isDelete")]
-    pub is_delete: bool,
+    #[serde(rename="isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename="createdAt")]
     pub created_at: DateTime,
     #[serde(rename="updatedAt")]

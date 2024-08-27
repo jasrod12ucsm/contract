@@ -31,6 +31,7 @@ impl Repository<EmailTemplate, EmailTemplateWithId> for EmailTemplateRepository 
     fn get_collection_for_id(&self) -> &Collection<EmailTemplateWithId> {
         &self.collection_id
     }
+    
 }
 
 impl EmailTemplateRepository {

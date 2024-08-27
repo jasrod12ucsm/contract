@@ -1,6 +1,4 @@
-use std::
-    str::FromStr
-;
+use std::str::FromStr;
 
 use crate::{
     modules::authentication::{
@@ -14,10 +12,15 @@ use crate::{
         },
     },
     utils::{
-        country_repository::CountryRepository, email_functions::EmailFunctions,
-        email_template_repository::EmailTemplateRepository, jwt::generate::generate_jwt,
-        region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
-        user_config_repository::UserConfigRepository, user_repository::UserRepository,
+        email_functions::EmailFunctions,
+        jwt::generate::generate_jwt,
+        repositories::{
+            app_variables_repository::AppVariablesRepository,
+            country_repository::CountryRepository,
+            email_template_repository::EmailTemplateRepository,
+            region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
+            user_config_repository::UserConfigRepository, user_repository::UserRepository,
+        },
     },
 };
 use bod_models::{
@@ -56,7 +59,7 @@ use common::{
     },
 };
 use jsonwebtoken::{DecodingKey, Validation};
-use mongodb::bson::doc;
+use mongodb::{bson::doc, options::FindOneAndUpdateOptions};
 use ntex::{
     util::Either,
     web::{
@@ -81,7 +84,7 @@ pub async fn singup_client(
         identification_type,
         country_code,
         region_code,
-        birthdate
+        birthdate,
     } = register_dto.into_inner();
     //iniciamos repositorios
     let user_config_repository: UserConfigRepository = repo
@@ -110,6 +113,12 @@ pub async fn singup_client(
         .get_repository::<EmailTemplateRepository>()
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
+    //app_v ariables repository
+    let app_variables_repository: AppVariablesRepository = repo
+        .get_repository::<AppVariablesRepository>()
+        .await
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
+
     //creamos session para la transaccion
     let mut session = repo
         .get_client()
@@ -133,7 +142,8 @@ pub async fn singup_client(
         })?
         .ok_or_else(|| Either::Right(UserError::CreateUserError("")))?;
 
-    let find_region_document = doc! {"code":region_code.clone(), "countryId":country_code};
+    let find_region_document =
+        doc! {"code":region_code.clone(), "countryId":country_code,"noDeleted":true};
     let region = region_repository
         .find_one(find_region_document, Some(&mut session))
         .await
@@ -141,15 +151,11 @@ pub async fn singup_client(
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("internal error"))
         })?
-        .ok_or_else(|| {
-            Either::Right(UserError::CreateUserError("incorrect region"))
-        })?;
+        .ok_or_else(|| Either::Right(UserError::CreateUserError("incorrect region")))?;
     let user_config = user_config_repository
         .find_one(doc! {"email":email.clone()}, None)
         .await
-        .map_err(|_| {
-            Either::Left(UserConfigError::CreateUserError("error finding email"))
-        })?;
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("error finding email")))?;
     if user_config.is_some() {
         if user_config.unwrap().is_authenticated {
             return Err(Either::Left(UserConfigError::UserAlreadyExists(
@@ -162,24 +168,23 @@ pub async fn singup_client(
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("encryptation error")))?;
     let user_config_to_insert =
         UserConfigAttributes::new_client(names, surnames, email.clone(), encrypted_password);
+
     let update_doc = doc! {
         "$set":bson::to_bson(&user_config_to_insert).unwrap()
     };
+    println!("{:?}", update_doc);
     let user_config_inserted = user_config_repository
-        .find_one_and_update_with_upsert(
-            doc! {"email":email.clone()},
-            update_doc,
-            Some(&mut session),
-        )
+        .find_one_and_update(doc! {"email":email.clone()}, update_doc)
+        .session(&mut session)
+        .upsert(true)
         .await
-        .map_err(|_err| {
+        .map_err(|err| {
             let _ = session.abort_transaction();
-            Either::Left(UserConfigError::CreateUserError(
-                "error on create user, aborting process",
-            ))
+            println!("{:?}", err);
+            return Either::Left(UserConfigError::CreateUserError("error inserting user"));
         })?
-        .unwrap();
-    //*sin asignar empresa,ni permisos, permisos basicos (tabla)
+        .ok_or_else(|| Either::Left(UserConfigError::CreateUserError("error inserting user")))?;
+    println!("paso");
     //creamos token, pero usamos una tabla para validar el token, si existe y lo guardamos
     //1. crear token
 
@@ -197,7 +202,7 @@ pub async fn singup_client(
         account_type: user_config_to_insert.account_type,
         is_authenticated: user_config_to_insert.is_authenticated,
         is_active: user_config_to_insert.is_active,
-        is_delete: user_config_to_insert.is_delete,
+        is_deleted: user_config_to_insert.is_deleted,
         created_at: user_config_inserted.created_at,
         updated_at: user_config_inserted.updated_at,
     };
@@ -215,24 +220,27 @@ pub async fn singup_client(
         address,
         country.into(),
         region.into(),
-        birthdate
+        birthdate,
     );
     let doc_insert_user = doc! {
         "$set":bson::to_bson(&user).unwrap()
     };
     //insertamos usuario
     let user_inserted = user_repository
-        .find_one_and_update_with_upsert(
+        .find_one_and_update(
             doc! {"userConfig._id":user_config_with_id.id},
             doc_insert_user,
-            Some(&mut session),
         )
+        .session(&mut session)
+        .upsert(true)
         .await
         .map_err(|_err| {
+            println!("{:?}", _err);
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?
         .ok_or_else(|| {
+            println!("{:?}", "error inserting user");
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?;
@@ -254,12 +262,11 @@ pub async fn singup_client(
     let doc_insert_token = doc! {
         "$set":bson::to_bson(&reset_token_to_insert).unwrap()
     };
+
     let _reset_token_insertion = reset_token_repository
-        .find_one_and_update_with_upsert(
-            doc! {"userId":user_inserted.id},
-            doc_insert_token,
-            Some(&mut session),
-        )
+        .find_one_and_update(doc! {"userId":user_inserted.id,"noActive":true}, doc_insert_token)
+        .session(&mut session)
+        .upsert(true)
         .await
         .map_err(|_| {
             let _ = session.abort_transaction();
@@ -278,7 +285,7 @@ pub async fn singup_client(
 
     //usa el email template repository para buscar
     let email_template = email_template_repository
-        .find_one(doc! {"templateName":"register"}, None)
+        .find_one(doc! {"templateName":"register","noActive":true}, None)
         .await
         .map_err(|_| {
             Either::Left(UserConfigError::CreateUserError(
@@ -290,6 +297,23 @@ pub async fn singup_client(
             "no existe template",
         )));
     }
+    let app_variables = match app_variables_repository
+        .find_one(doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true}, Some(&mut session))
+        .await
+    {
+        Ok(Some(variables)) => variables,
+        Ok(None) => {
+            return Err(Either::Left(UserConfigError::CreateUserError(
+                "app variables not found",
+            )))
+        }
+        Err(err) => {
+            println!("{:?}", err);
+            return Err(Either::Left(UserConfigError::CreateUserError(
+                "error finding app variables",
+            )));
+        }
+    };
     let mut complete_name = user_config_inserted.names;
     complete_name.push_str(" ");
     complete_name.push_str(&user_config_inserted.surnames);
@@ -298,7 +322,7 @@ pub async fn singup_client(
     let render_html = EmailFunctions::replace_placeholders(
         email_template_html,
         vec![
-            "Instant",
+            app_variables.app_name.as_str(),
             complete_name.as_str(),
             format!(
                 "{}-{}",
@@ -306,21 +330,21 @@ pub async fn singup_client(
                 &code_str[3..]
             )
             .as_str(),
-            "https://www.facebook.com",
-            "https://www.instagram.com",
-            "https://www.google.com",
-            "https://www.google.com",
+            app_variables.facebook_link.as_str(),
+            app_variables.instagram_link.as_str(),
+            app_variables.phone.as_str(),
+            app_variables.whatsapp_link.as_str(),
         ],
     )
     .replace("\\n", "")
     .replace("\\\"", "\"");
+    println!("{}", render_html);
     // Enviar el email de forma asincrónica sin bloquear la función principal
     tokio::spawn(async move {
         let _ = SmtpFunctions::send_email(email.as_str(), "Enable Account", &render_html);
     });
     Ok(JsonAdvanced(data_to_return))
 }
-//TODO verificar tabla de token al logear
 
 //resend email
 #[web::get("resend/email/{id}")]
@@ -333,47 +357,61 @@ pub async fn resend_email(
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
-        .map_err(|_| ResetTokenError::GetTokenError)?;
+        .map_err(|_| ResetTokenError::GetTokenError("internal server erro"))?;
     //email template repository+
     let email_template_repository = repo
         .get_repository::<EmailTemplateRepository>()
         .await
-        .map_err(|_| ResetTokenError::GetTokenError)?;
+        .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?;
+    let user_config_repository: UserConfigRepository = repo
+        .get_repository::<UserConfigRepository>()
+        .await
+        .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?;
     let current_user = repo
         .get_repository::<UserRepository>()
         .await
-        .map_err(|_| ResetTokenError::GetTokenError)?
+        .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?
         .find_one(doc! {"_id":ObjectId::parse_str(id_path).unwrap()}, None)
         .await
-        .map_err(|_| ResetTokenError::GetTokenError)?
-        .ok_or_else(|| ResetTokenError::GetTokenError)?;
+        .map_err(|_| ResetTokenError::GetTokenError("cannot get user"))?
+        .ok_or_else(|| ResetTokenError::GetTokenError("invalid user"))?;
+    let current_user_config = user_config_repository
+        .find_one(doc! {"_id":current_user.user_config.id}, None)
+        .await
+        .map_err(|_| ResetTokenError::GetTokenError("cannot get that user"))?
+        .ok_or_else(|| ResetTokenError::GetTokenError("user configuration not exist"))?;
+    //verifica autentificacion
+    if current_user_config.is_authenticated {
+        return Err(ResetTokenError::GetTokenError("user is authenticated"));
+    }
+
     //generar random number
     let code = PasswordFunctions::generate_random_number();
     //actualizar la tabla de reset_token con ese random_number
 
     let filter = doc! {
-        "userId":current_user.id
+        "userId":current_user.id,"noActive":true
     };
     let update_doc = doc! {
         "$set":{
             "authCode":code
         }
     };
+    println!("anets de transaccion");
     let _reset_token_insertion = reset_token_repository
         .update_one(filter, update_doc)
         .await
-        .map_err(|_| ResetTokenError::GetTokenError)?;
+        .map_err(|_| ResetTokenError::GetTokenError("critical error is passing"))?;
     //ahora genera el html
-
+    println!("paso");
     let email_template = email_template_repository
-        .find_one(doc! {"templateName":"register"}, None)
+        .find_one(doc! {"templateName":"register","noActive":true}, None)
         .await
-        .map_err(|_| {
-            ResetTokenError::GetTokenError
-        })?;
+        .map_err(|_| ResetTokenError::GetTokenError("cannot render template"))?;
     if email_template.is_none() {
-        return Err(ResetTokenError::GetTokenError);
+        return Err(ResetTokenError::GetTokenError("template not exist"));
     }
+    println!("{:?}", email_template);
     let mut complete_name = current_user.user_config.names;
     complete_name.push_str(" ");
     complete_name.push_str(&current_user.user_config.surnames);
@@ -442,7 +480,7 @@ pub async fn authenticate(
     //pregunta por el codigo
     let AuthenticatePostCode { code } = code.into_inner();
     //quiero validar que el code del token no se haya actualizado hace mas de dos minutos usando DATETIME DE MONGO
-    let current_time=DateTime::now();
+    let current_time = DateTime::now();
     let diff = current_time.checked_duration_since(token.updated_at);
     if diff.is_none() {
         return Err(UserConfigError::LoginUserError("Codigo expirado"));
@@ -466,11 +504,10 @@ pub async fn authenticate(
         }
     };
     let actualized_register = user_config_repository
-        .find_one_and_update_with_upsert(filter, update_doc, None)
+        .find_one_and_update(filter, update_doc)
+        .upsert(true)
         .await
-        .map_err(|_| {
-            UserConfigError::LoginUserError("Internal update error")
-        })?;
+        .map_err(|_| UserConfigError::LoginUserError("Internal update error"))?;
     if actualized_register.is_none() {
         return Err(UserConfigError::LoginUserError(
             "no se actualizo ningun registro",
@@ -619,20 +656,20 @@ pub async fn renew(
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("internal server error"))?;
     //user repository
     let user_repository: UserRepository = repo
         .get_repository::<UserRepository>()
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("internal server error"))?;
     //busca el user
     let user = user_repository
         .find_one(doc! {"_id":id}, None)
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?
-        .ok_or(ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("cannot find user"))?
+        .ok_or(ResetTokenError::UpdateTokenError("cannot find user"))?;
 
-    let new_token = generate_jwt(user).map_err(|_| ResetTokenError::UpdateTokenError)?;
+    let new_token = generate_jwt(user).map_err(|_| ResetTokenError::UpdateTokenError("cannot interact with jwt"))?;
     //ahora actualizamos la tabla con el nuevo token
     let filter = doc! {"userId":id};
     let doc_insert_token = doc! {
@@ -643,7 +680,7 @@ pub async fn renew(
     let _reset_token_insertion = reset_token_repository
         .update_one(filter, doc_insert_token)
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("cannot insert token"))?;
     Ok(JsonAdvanced(RenewResult {
         success: true,
         message: "token generated".to_string(),
@@ -660,13 +697,13 @@ pub async fn get_token(
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("cannot update token"))?;
     let token_register = reset_token_repository
         .find_one(doc! {"userId":id}, None)
         .await
-        .map_err(|_| ResetTokenError::UpdateTokenError)?;
+        .map_err(|_| ResetTokenError::UpdateTokenError("no se puede obtener token"))?;
     if token_register.is_none() {
-        return Err(ResetTokenError::UpdateTokenError);
+        return Err(ResetTokenError::UpdateTokenError("no se puede obtener token"));
     }
     let token = token_register.unwrap().token;
     Ok(JsonAdvanced(GetTokenResult { token }))

@@ -1,4 +1,4 @@
-use bod_models::{schemas::location::region::{models::region_with_id::RegionWithId, region::Region}, shared::schema::BaseColleccionNames};
+use bod_models::{schemas::mst::user::{models::user_with_id::UserWithId, user::User}, shared::schema::BaseColleccionNames};
 use common::utils::ntex_private::repository::public_repository::{
         PublicRepository, Repository, SetPublicRepository,
     };
@@ -7,40 +7,41 @@ use mongodb::{Client, Collection};
 use std::sync::{Arc, Mutex};
 
 lazy_static! (
-    pub static ref REGION_REPOSITORY: Arc<Mutex<Option<RegionRepository>>> =
+    pub static ref USER_REPOSITORY: Arc<Mutex<Option<UserRepository>>> =
         Arc::new(Mutex::new(None));
 );
 #[derive(Clone)]
-pub struct RegionRepository {
-    collection: Collection<Region>,
-    collection_id: Collection<RegionWithId>,
+pub struct UserRepository {
+    collection: Collection<User>,
+    collection_id: Collection<UserWithId>,
     client: Client,
 }
 
-impl Repository<Region,RegionWithId> for RegionRepository {
-    fn get_collection(&self) -> &Collection<Region> {
+impl Repository<User, UserWithId> for UserRepository {
+    fn get_collection(&self) -> &Collection<User> {
         &self.collection
     }
 
     fn get_client(&self) -> &Client {
         &self.client
     }
-    
-    fn get_collection_for_id(&self) -> &Collection<RegionWithId> {
+
+    fn get_collection_for_id(&self) -> &Collection<UserWithId> {
         &self.collection_id
     }
+    
 }
 
-impl RegionRepository {
+impl UserRepository {
     pub async fn new(repository: &PublicRepository) -> Result<Self, mongodb::error::Error> {
         let client = repository.get_client()?;
-        let collection: Collection<Region> = client
-            .database(Region::get_database_name())
-            .collection(Region::get_collection_name());
-        let collection_id: Collection<RegionWithId> = client
-            .database(Region::get_database_name())
-            .collection(Region::get_collection_name());
-        Ok(RegionRepository {
+        let collection: Collection<User> = client
+            .database(User::get_database_name())
+            .collection(User::get_collection_name());
+        let collection_id: Collection<UserWithId> = client
+            .database(User::get_database_name())
+            .collection(User::get_collection_name());
+        Ok(UserRepository {
             collection,
             client: client.clone(),
             collection_id,
@@ -49,17 +50,17 @@ impl RegionRepository {
 }
 
 #[async_trait::async_trait]
-impl SetPublicRepository for RegionRepository {
-    type RepositoryType = RegionRepository;
+impl SetPublicRepository for UserRepository {
+    type RepositoryType = UserRepository;
 
     async fn set_repository(
         repository: &PublicRepository,
     ) -> Result<Self::RepositoryType, mongodb::error::Error> {
         let repository_option = {
-            let value = &REGION_REPOSITORY;
+            let value = &USER_REPOSITORY;
 
             if value.lock().unwrap().is_none() {
-                let obj_repository = RegionRepository::new(repository).await?;
+                let obj_repository = UserRepository::new(repository).await?;
                 *(value.lock().unwrap()) = Some(obj_repository);
             }
 

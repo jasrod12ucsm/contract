@@ -15,13 +15,20 @@ pub struct ResetToken {
     pub created: DateTime,
     #[serde(rename = "authCode")]
     pub auth_code:i32,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
+    pub devices:Vec<Device>
 }
+#[derive(Serialize, Deserialize)]
+pub struct Device{
+    os:String,
+    mac:String,
+}
+
 
 pub struct PartialResetToken {
     pub token: String,
@@ -39,7 +46,7 @@ impl ResetToken {
             token,
             user_id,
             created: DateTime::now(),
-            is_delete: false,
+            is_deleted: false,
             created_at: DateTime::now(),
             updated_at: DateTime::now(),
         }

@@ -1,10 +1,17 @@
-use std::time::Duration;
+use std::{borrow::Borrow, time::Duration};
 
 use async_trait::async_trait;
+use bod_models::shared::schema::BaseColleccionNames;
 use mongodb::{
-    action::Update, bson::{doc, DateTime}, error::Error, options::{
-        ClientOptions, Compressor, ReadPreference, ReadPreferenceOptions, ReturnDocument, SelectionCriteria, ServerApiVersion
-    }, results::InsertOneResult, Client, ClientSession, Collection
+    action::{gridfs::Find, FindOneAndUpdate, InsertOne, Update},
+    bson::{doc, document, DateTime},
+    error::Error,
+    options::{
+        ClientOptions, Compressor, ReadPreference, ReadPreferenceOptions, ReturnDocument,
+        SelectionCriteria, ServerApiVersion,
+    },
+    results::InsertOneResult,
+    Client, ClientSession, Collection,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -73,28 +80,20 @@ pub trait SetPublicRepository {
 
 #[async_trait]
 pub trait AbstractRepository<T: Serialize + Send + Sync, U: Serialize + Send + Sync> {
-    async fn insert_one(
-        &self,
-        item: T,
-        session: Option<&mut ClientSession>,
-    ) -> Result<InsertOneResult, Error>;
+    fn construct_new_collection<K>(&self) -> Collection<K>
+    where
+        K: Serialize + DeserializeOwned + Unpin + Send + Sync;
+    fn insert_one(&self, item: T) -> InsertOne;
     async fn find_one(
         &self,
         filter: mongodb::bson::Document,
         session: Option<&mut ClientSession>,
     ) -> Result<Option<U>, Error>;
-    async fn find_one_and_update(
+    fn find_one_and_update(
         &self,
         filter: mongodb::bson::Document,
         update: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error>;
-    async fn find_one_and_update_with_upsert(
-        &self,
-        filter: mongodb::bson::Document,
-        update: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error>;
+    ) -> FindOneAndUpdate<U>; // Cambiado a Result<Option<U>, Error>
     fn update_one(
         &self,
         filter: mongodb::bson::Document,
@@ -102,70 +101,106 @@ pub trait AbstractRepository<T: Serialize + Send + Sync, U: Serialize + Send + S
     ) -> Update;
     fn get_all(&self) -> mongodb::action::Find<'_, U>;
     fn find(&self, filter: mongodb::bson::Document) -> mongodb::action::Find<'_, U>;
+    fn find_generic<'a, J>(
+        &'a self,
+        filter: mongodb::bson::Document,
+        collection: &'a Collection<J>,
+    ) -> mongodb::action::Find<'_, J>
+    where
+        J: Serialize + DeserializeOwned + Unpin + Send + Sync;
 }
 
 #[async_trait]
 impl<T, U, R> AbstractRepository<T, U> for R
 where
-    T: Serialize + Send + Sync + 'static + Unpin + DeserializeOwned,
+    T: Serialize + Send + Sync + 'static + Unpin + DeserializeOwned + BaseColleccionNames,
     R: Repository<T, U> + Send + Sync,
     U: Serialize + Send + Sync + 'static + Unpin + DeserializeOwned,
 {
-    async fn insert_one(
-        &self,
-        item: T,
-        session: Option<&mut ClientSession>,
-    ) -> Result<InsertOneResult, Error> {
+    fn insert_one(&self, item: T) -> InsertOne {
         let collection = self.get_collection();
-        if let Some(session) = session {
-            return collection.insert_one(item).session(session).await;
-        }
-        collection.insert_one(item).await
+        collection.insert_one(item)
     }
+
     async fn find_one(
         &self,
-        filter: mongodb::bson::Document,
+        mut filter: mongodb::bson::Document,
         session: Option<&mut ClientSession>,
     ) -> Result<Option<U>, Error> {
+        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_active = filter.contains_key("isActive");
+        let has_no_deleted = filter.contains_key("noDeleted");
+        let has_no_active = filter.contains_key("noActive");
+
+        // If neither "isDeleted" nor "isActive" are present, add default values
+        if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
+            filter.insert("isDeleted", false);
+            filter.insert("isActive", true);
+        } else {
+            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            if !has_is_deleted && !has_no_deleted {
+                filter.insert("isDeleted", false);
+            }
+            // If "isActive" is not present and "noActive" is not present, add the default value
+            if !has_is_active && !has_no_active {
+                filter.insert("isActive", true);
+            }
+        }
+
+        // Remove "noDeleted" and "noActive" from the filter if they exist
+        if has_no_deleted {
+            filter.remove("noDeleted");
+        }
+        if has_no_active {
+            filter.remove("noActive");
+        }
+        println!("Filter: {:?}", filter);
         let collection = self.get_collection_for_id();
         if let Some(session) = session {
-            let doc = collection.find_one(filter).selection_criteria(SelectionCriteria::ReadPreference(ReadPreference::Primary)).session(session).await?;
+            let doc = collection
+                .find_one(filter)
+                .selection_criteria(SelectionCriteria::ReadPreference(ReadPreference::Primary))
+                .session(session)
+                .await?;
             return Ok(doc);
         }
         let document = collection.find_one(filter).await?;
         Ok(document)
     }
-    //findOneandUpdate
-    async fn find_one_and_update(
+
+    fn find_one_and_update(
         &self,
-        filter: mongodb::bson::Document,
+        mut filter: mongodb::bson::Document,
         mut update: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error> {
-        let collection = self.get_collection_for_id();
-        //pon el updated at en el update
-        let now=DateTime::now();
-        if let Ok(set_doc)=update.get_document_mut("$set"){
-            set_doc.insert("updatedAt", now);
-        }else{
-            update.insert("$set", doc! {"updatedAt": now});
+    ) -> FindOneAndUpdate<U> {
+        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_active = filter.contains_key("isActive");
+        let has_no_deleted = filter.contains_key("noDeleted");
+        let has_no_active = filter.contains_key("noActive");
+
+        // If neither "isDeleted" nor "isActive" are present, add default values
+        if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
+            filter.insert("isDeleted", false);
+            filter.insert("isActive", true);
+        } else {
+            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            if !has_is_deleted && !has_no_deleted {
+                filter.insert("isDeleted", false);
+            }
+            // If "isActive" is not present and "noActive" is not present, add the default value
+            if !has_is_active && !has_no_active {
+                filter.insert("isActive", true);
+            }
         }
-        if let Some(session) = session {
-            let doc = collection
-                .find_one_and_update(filter, update)
-                .session(session)
-                .await?;
-            return Ok(doc);
+
+        // Remove "noDeleted" and "noActive" from the filter if they exist
+        if has_no_deleted {
+            filter.remove("noDeleted");
         }
-        let document = collection.find_one_and_update(filter, update).await?;
-        Ok(document)
-    }
-    async fn find_one_and_update_with_upsert(
-        &self,
-        filter: mongodb::bson::Document,
-        mut update: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error> {
+        if has_no_active {
+            filter.remove("noActive");
+        }
+
         let collection = self.get_collection_for_id();
         let now = DateTime::now();
         if let Ok(set_doc) = update.get_document_mut("$set") {
@@ -173,42 +208,151 @@ where
         } else {
             update.insert("$set", doc! {"updatedAt": now});
         }
+
         update.insert("$setOnInsert", doc! {"createdAt": now});
-        if let Some(session) = session {
-            let doc = collection
-                .find_one_and_update(filter, update)
-                .upsert(true)
-                .return_document(ReturnDocument::After)
-                .session(session)
-                .await?;
-            return Ok(doc);
-        }
+        println!("filter: {}", filter);
+        println!("update: {}", update);
         let document = collection
             .find_one_and_update(filter, update)
-            .upsert(true)
-            .return_document(ReturnDocument::After)
-            .await?;
-        Ok(document)
+            .return_document(ReturnDocument::After);
+        document
     }
+
     fn update_one(
         &self,
-        filter: mongodb::bson::Document,
-        update: mongodb::bson::Document,
+        mut filter: mongodb::bson::Document,
+        mut update: mongodb::bson::Document,
     ) -> Update {
+        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_active = filter.contains_key("isActive");
+        let has_no_deleted = filter.contains_key("noDeleted");
+        let has_no_active = filter.contains_key("noActive");
+
+        // If neither "isDeleted" nor "isActive" are present, add default values
+        if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
+            filter.insert("isDeleted", false);
+            filter.insert("isActive", true);
+        } else {
+            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            if !has_is_deleted && !has_no_deleted {
+                filter.insert("isDeleted", false);
+            }
+            // If "isActive" is not present and "noActive" is not present, add the default value
+            if !has_is_active && !has_no_active {
+                filter.insert("isActive", true);
+            }
+        }
+
+        // Remove "noDeleted" and "noActive" from the filter if they exist
+        if has_no_deleted {
+            filter.remove("noDeleted");
+        }
+        if has_no_active {
+            filter.remove("noActive");
+        }
+
         let collection = self.get_collection_for_id();
+        let now = DateTime::now();
+        if let Ok(set_doc) = update.get_document_mut("$set") {
+            set_doc.insert("updatedAt", now);
+        } else {
+            update.insert("$set", doc! {"updatedAt": now});
+        }
         let document = collection.update_one(filter, update);
         document
     }
+
     fn get_all(&self) -> mongodb::action::Find<'_, U> {
         let collection = self.get_collection_for_id();
         let document = collection.find(doc! {});
         document
     }
 
-    fn find(&self, filter: mongodb::bson::Document) -> mongodb::action::Find<'_,U>{
-        let collection = self.get_collection_for_id();
-        let document = collection.find(filter);
+    fn find(&self, mut filter: mongodb::bson::Document) -> mongodb::action::Find<'_, U> {
+        // Check if "isDeleted" or "isActive" are present in the filter
+        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_active = filter.contains_key("isActive");
+        let has_no_deleted = filter.contains_key("noDeleted");
+        let has_no_active = filter.contains_key("noActive");
+
+        // If neither "isDeleted" nor "isActive" are present, add default values
+        if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
+            filter.insert("isDeleted", false);
+            filter.insert("isActive", true);
+        } else {
+            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            if !has_is_deleted && !has_no_deleted {
+                filter.insert("isDeleted", false);
+            }
+            // If "isActive" is not present and "noActive" is not present, add the default value
+            if !has_is_active && !has_no_active {
+                filter.insert("isActive", true);
+            }
+        }
+
+        // Remove "noDeleted" and "noActive" from the filter if they exist
+        if has_no_deleted {
+            filter.remove("noDeleted");
+        }
+        if has_no_active {
+            filter.remove("noActive");
+        }
+        println!("Filter: {:?}", filter);
+        let collection: &Collection<U> = self.get_collection_for_id();
+        let document: mongodb::action::Find<U> = collection.find(filter);
         document
+    }
+
+    fn find_generic<'a, J>(
+        &'a self,
+        mut filter: mongodb::bson::Document,
+        collection: &'a Collection<J>,
+    ) -> mongodb::action::Find<'_, J>
+    where
+        J: Serialize + DeserializeOwned + Unpin + Send + Sync,
+    {
+        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_active = filter.contains_key("isActive");
+        let has_no_deleted = filter.contains_key("noDeleted");
+        let has_no_active = filter.contains_key("noActive");
+
+        // If neither "isDeleted" nor "isActive" are present, add default values
+        if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
+            filter.insert("isDeleted", false);
+            filter.insert("isActive", true);
+        } else {
+            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            if !has_is_deleted && !has_no_deleted {
+                filter.insert("isDeleted", false);
+            }
+            // If "isActive" is not present and "noActive" is not present, add the default value
+            if !has_is_active && !has_no_active {
+                filter.insert("isActive", true);
+            }
+        }
+
+        // Remove "noDeleted" and "noActive" from the filter if they exist
+        if has_no_deleted {
+            filter.remove("noDeleted");
+        }
+        if has_no_active {
+            filter.remove("noActive");
+        }
+        println!("Filter: {:?}", filter);
+
+        let document: mongodb::action::Find<J> = collection.find(filter);
+        document
+    }
+
+    fn construct_new_collection<K>(&self) -> Collection<K>
+    where
+        K: Serialize + DeserializeOwned + Unpin + Send + Sync,
+    {
+        let collection = self
+            .get_client()
+            .database(T::get_database_name())
+            .collection(T::get_collection_name());
+        collection
     }
 }
 

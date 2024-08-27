@@ -1,14 +1,16 @@
-use bod_models::{schemas::mst::user::{models::user_with_id::UserWithId, user::User}, shared::schema::BaseColleccionNames};
 use crate::utils::ntex_private::repository::public_repository::{
-        PublicRepository, Repository, SetPublicRepository,
-    };
+    PublicRepository, Repository, SetPublicRepository,
+};
+use bod_models::{
+    schemas::mst::user::{models::user_with_id::UserWithId, user::User},
+    shared::schema::BaseColleccionNames,
+};
 use lazy_static::lazy_static;
 use mongodb::{Client, Collection};
 use std::sync::{Arc, Mutex};
 
 lazy_static! (
-    pub static ref USER_REPOSITORY: Arc<Mutex<Option<UserRepository>>> =
-        Arc::new(Mutex::new(None));
+    pub static ref USER_REPOSITORY: Arc<Mutex<Option<UserRepository>>> = Arc::new(Mutex::new(None));
 );
 #[derive(Clone)]
 pub struct UserRepository {
@@ -29,6 +31,7 @@ impl Repository<User, UserWithId> for UserRepository {
     fn get_collection_for_id(&self) -> &Collection<UserWithId> {
         &self.collection_id
     }
+
 }
 
 impl UserRepository {

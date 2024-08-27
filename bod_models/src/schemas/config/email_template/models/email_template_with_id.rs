@@ -8,8 +8,8 @@ pub struct EmailTemplateWithId {
     #[serde(rename="templateName")]
     pub template_name: String,
     pub html: String,
-    #[serde(rename="isDelete")]
-    pub is_delete: bool,
+    #[serde(rename="isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename="updatedAt")]
     pub updated_at: DateTime,
 }

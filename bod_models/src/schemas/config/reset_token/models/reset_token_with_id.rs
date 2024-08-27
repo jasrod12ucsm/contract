@@ -13,8 +13,8 @@ pub struct ResetTokenWithId {
     #[serde(rename = "authCode")]
     pub auth_code: i32,
     pub created: DateTime,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]

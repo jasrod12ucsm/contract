@@ -15,8 +15,8 @@ pub struct ResetTokenAttributes {
     pub created: DateTime,
     #[serde(rename = "authCode")]
     pub auth_code:i32,
-    #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
 }
 
 
@@ -28,7 +28,7 @@ impl ResetTokenAttributes {
             token,
             user_id,
             created: DateTime::now(),
-            is_delete: false,
+            is_deleted: false,
         }
     }
 }

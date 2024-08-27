@@ -1,60 +1,37 @@
-use derive_more::{Display, Error};
+use derive_more::Display;
 use ntex::{http, web};
 use serde_json::json;
 
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display)]
 pub enum ResetTokenError {
     #[display(fmt = "Error Creating Token")]
-    CreateTokenError,
+    CreateTokenError(&'static str),
     #[display(fmt = "Error Getting Token")]
-    GetTokenError,
+    GetTokenError(&'static str),
     #[display(fmt = "Error Deleting Token")]
-    GetTokensError,
+    DeleteTokenError(&'static str),
     #[display(fmt = "Error Updating Token")]
-    DeleteTokenError,
-    #[display(fmt = "Error Updating Token")]
-    UpdateTokenError,
+    UpdateTokenError(&'static str),
+    #[display(fmt = "Error Getting Tokens")]
+    GetTokensError(&'static str),
 }
 
 impl web::error::WebResponseError for ResetTokenError {
     fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
         match *self {
-            ResetTokenError::CreateTokenError => web::HttpResponse::build(self.status_code())
-                .set_header("content-type", "application/json; charset=utf-8")
-                .json(&json!({ "error": self.to_string(), "statudCode": 404})),
-            ResetTokenError::GetTokenError => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error":self.to_string(),"statudCode":404})),
-            ResetTokenError::DeleteTokenError => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error":self.to_string(), "statudCode":404})),
-            ResetTokenError::UpdateTokenError => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error":self.to_string(), "statudCode":404})),
-            ResetTokenError::GetTokensError => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error":self.to_string(), "statudCode":404})),
+            ResetTokenError::CreateTokenError(msg)
+            | ResetTokenError::GetTokenError(msg)
+            | ResetTokenError::DeleteTokenError(msg)
+            | ResetTokenError::UpdateTokenError(msg)
+            | ResetTokenError::GetTokensError(msg) => {
+                web::HttpResponse::build(self.status_code())
+                    .set_header("content-type", "application/json; charset=utf-8")
+                    .json(&json!({ "error": self.to_string(), "statusCode": 404, "message": msg }))
+            }
         }
     }
+
     fn status_code(&self) -> http::StatusCode {
-        match *self {
-            ResetTokenError::CreateTokenError => http::StatusCode::BAD_REQUEST,
-            ResetTokenError::GetTokenError => http::StatusCode::BAD_REQUEST,
-            ResetTokenError::DeleteTokenError => http::StatusCode::BAD_REQUEST,
-            ResetTokenError::UpdateTokenError => http::StatusCode::BAD_REQUEST,
-            ResetTokenError::GetTokensError => http::StatusCode::BAD_REQUEST,
-        }
+        http::StatusCode::BAD_REQUEST
     }
 }

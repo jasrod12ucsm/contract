@@ -64,11 +64,10 @@ pub async fn create_region(
             "$set":bson::to_bson(&region).unwrap()
         };
         let region_inserted = region_repository
-            .find_one_and_update_with_upsert(
+            .find_one_and_update(
                 doc! {"code":region.code},
                 document_to_insert_region,
-                None,
-            )
+            ).upsert(true)
             .await
             .map_err(|err| RegionError::CreateRegionError(err.to_string()))?;
         if region_inserted.is_none() {
@@ -123,7 +122,7 @@ pub async fn get_region_by_country_code(
         .map_err(|_| {
             RegionError::GetRegionsError("code error, contact with the tecnical team")
         })?;
-    let mut regions = region_repository.find(doc! {"countryId":country_code})
+    let mut regions = region_repository.find(doc! {"countryId":country_code,"noDeleted":true})
         .await
         .map_err(|_| {
             RegionError::GetRegionsError("code error, contact with the tecnical team")

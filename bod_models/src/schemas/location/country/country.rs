@@ -20,10 +20,12 @@ pub struct Country {
     pub population:i64,
     pub flag:String,
     pub langs:Vec<String>,
-     #[serde(rename = "isDelete")]
-    pub is_delete: bool,
+     #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime,
+    #[serde(rename = "isActive")]
+    pub is_active: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
 }
@@ -41,7 +43,8 @@ impl Country{
             sub_region,
             population,
             langs,
-            is_delete:false,
+            is_deleted:false,
+            is_active:true,
             created_at:now,
             updated_at:now
         }
