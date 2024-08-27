@@ -21,7 +21,6 @@ pub struct ResetToken {
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
-    pub devices:Vec<Device>
 }
 #[derive(Serialize, Deserialize)]
 pub struct Device{
