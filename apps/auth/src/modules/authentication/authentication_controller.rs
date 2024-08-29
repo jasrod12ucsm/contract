@@ -470,7 +470,7 @@ pub async fn authenticate(
         .map_err(|_| UserConfigError::LoginUserError("Internal code error"))?;
     //ahora preguntamos por el token
     let token_register = reset_token_repository
-        .find_one(doc! {"userId":id}, None)
+        .find_one(doc! {"userId":id,"noActive":true}, None)
         .await
         .map_err(|_| UserConfigError::LoginUserError("User not finded"))?;
     if token_register.is_none() {
