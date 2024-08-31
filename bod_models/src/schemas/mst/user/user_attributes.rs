@@ -1,38 +1,38 @@
 
+use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::schemas::{
-    config::user_config::models::short_user_config::ShortUserConfig,
-    location::{country::models::short_country::ShortCountry, region::region::Region},
-};
+use crate::schemas::
+    location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion}
+;
 
-use super::models::identification::Identification;
+use super::models::{atention_hour::AtentionHour, identification::Identification};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserAttributes {
     pub frecuency: Option<Vec<String>>,
     pub country: ShortCountry,
-    pub region: Region,
-    #[serde(rename = "userConfig")]
-    pub user_config: ShortUserConfig,
+    pub region: ShortRegion,
+    #[serde(rename = "userConfigId")]
+    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     pub image: Option<String>,
     #[serde(rename = "parentId")]
     pub parent_id: Option<String>,
     #[serde(rename = "childsIds")]
-    pub childs_ids: Option<i32>,
+    pub childs_ids: Option<Vec<ObjectId>>,
     pub address: String,
     pub lvl: i32,
     pub logo: Option<String>,
     #[serde(rename = "typeProvider")]
-    pub type_provider: Option<String>,
+    pub type_provider: String,
     #[serde(rename = "employedBy")]
-    pub employed_by: Option<i32>,
+    pub employed_by: Option<ObjectId>,
     #[serde(rename = "closeHour")]
-    pub close_hour: Option<String>,
+    pub close_hour: AtentionHour,
     #[serde(rename = "openHour")]
-    pub open_hour: Option<String>,
+    pub open_hour: AtentionHour,
     pub birthdate: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
@@ -42,13 +42,14 @@ pub struct UserAttributes {
 
 impl UserAttributes {
     pub fn new_client(
-        user_config: ShortUserConfig,
+        user_config: ObjectId,
         identification: Identification,
         phone: String,
         address: String,
         country: ShortCountry,
-        region: Region,
+        region: ShortRegion,
         birthdate: String,
+        type_provider: String,
     ) -> UserAttributes {
         UserAttributes {
             birthdate,
@@ -64,10 +65,10 @@ impl UserAttributes {
             parent_id: None,
             childs_ids: None,
             logo: None,
-            type_provider: None,
+            type_provider,
             employed_by: None,
-            close_hour: None,
-            open_hour: None,
+            close_hour: AtentionHour::create_empty(),
+            open_hour: AtentionHour::create_empty(),
             is_active: true,
             is_deleted: false,
         }

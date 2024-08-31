@@ -7,8 +7,8 @@ use crate::{
             register_user_client_dto::RegisterUserClientDto,
         },
         models::{
-            email_sended::EmailSended, get_token_result::GetTokenResult, renew_result::RenewResult,
-            user_id::UserId,
+            email_sended::EmailSended, get_token_result::GetTokenResult, login_result::LoginResult,
+            renew_result::RenewResult, user_id::UserId,
         },
     },
     utils::{
@@ -38,7 +38,7 @@ use bod_models::{
             },
         },
         mst::user::{
-            models::{identification::Identification, user_with_id::UserWithId},
+            models::identification::Identification,
             user_attributes::UserAttributes,
             user_errors::UserError,
         },
@@ -58,7 +58,7 @@ use common::{
     },
 };
 use jsonwebtoken::{DecodingKey, Validation};
-use mongodb::{bson::doc, options::FindOneAndUpdateOptions};
+use mongodb::bson::doc;
 use ntex::{
     util::Either,
     web::{
@@ -210,7 +210,7 @@ pub async fn singup_client(
 
     //4. Crear usuario principal
     let user = UserAttributes::new_client(
-        user_config_with_id.clone(),
+        user_config_with_id.clone().id,
         Identification {
             identification_number,
             identification_type,
@@ -220,6 +220,7 @@ pub async fn singup_client(
         country.into(),
         region.into(),
         birthdate,
+        "C".to_string()
     );
     let doc_insert_user = doc! {
         "$set":bson::to_bson(&user).unwrap()
@@ -263,7 +264,10 @@ pub async fn singup_client(
     };
 
     let _reset_token_insertion = reset_token_repository
-        .find_one_and_update(doc! {"userId":user_inserted.id,"noActive":true}, doc_insert_token)
+        .find_one_and_update(
+            doc! {"userId":user_inserted.id,"noActive":true},
+            doc_insert_token,
+        )
         .session(&mut session)
         .upsert(true)
         .await
@@ -297,7 +301,10 @@ pub async fn singup_client(
         )));
     }
     let app_variables = match app_variables_repository
-        .find_one(doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true}, Some(&mut session))
+        .find_one(
+            doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true},
+            Some(&mut session),
+        )
         .await
     {
         Ok(Some(variables)) => variables,
@@ -375,7 +382,7 @@ pub async fn resend_email(
         .map_err(|_| ResetTokenError::GetTokenError("cannot get user"))?
         .ok_or_else(|| ResetTokenError::GetTokenError("invalid user"))?;
     let current_user_config = user_config_repository
-        .find_one(doc! {"_id":current_user.user_config.id}, None)
+        .find_one(doc! {"_id":current_user.user_config}, None)
         .await
         .map_err(|_| ResetTokenError::GetTokenError("cannot get that user"))?
         .ok_or_else(|| ResetTokenError::GetTokenError("user configuration not exist"))?;
@@ -411,9 +418,9 @@ pub async fn resend_email(
         return Err(ResetTokenError::GetTokenError("template not exist"));
     }
     println!("{:?}", email_template);
-    let mut complete_name = current_user.user_config.names;
+    let mut complete_name = current_user_config.names;
     complete_name.push_str(" ");
-    complete_name.push_str(&current_user.user_config.surnames);
+    complete_name.push_str(&current_user_config.surnames);
     let email_template_html = email_template.unwrap().html;
     let code_str = &code.to_string();
     let render_html = EmailFunctions::replace_placeholders(
@@ -437,7 +444,7 @@ pub async fn resend_email(
     .replace("\\\"", "\"");
     // Enviar el email de forma asincrónica sin bloquear la función principal
     let email_sended = SmtpFunctions::send_email(
-        current_user.user_config.email.as_str(),
+        current_user_config.email.as_str(),
         "Enable Account",
         &render_html,
     );
@@ -519,7 +526,7 @@ pub async fn authenticate(
 pub async fn login_client(
     login_dto: JsonAdvanced<LoginCLientDto>,
     repo: State<PublicRepository>,
-) -> Result<JsonAdvanced<UserWithId>, UserConfigError> {
+) -> Result<JsonAdvanced<LoginResult>, UserConfigError> {
     // No hacemos validación del tipo de cuenta, ya que todos los tipos pueden entrar como clientes
     let LoginCLientDto { email, password } = login_dto.into_inner();
     //* Crear repos */
@@ -588,8 +595,11 @@ pub async fn login_client(
                     .await
                     .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
                     .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-
-                return Ok(JsonAdvanced(user));
+                let short_user_config: ShortUserConfig = user_config.into();
+                return Ok(JsonAdvanced(LoginResult::from_user_and_user_config(
+                    user,
+                    short_user_config
+                )));
             }
             Err(err) => {
                 match err.kind() {
@@ -627,8 +637,11 @@ pub async fn login_client(
                                 UserConfigError::LoginUserError("Error al buscar el usuario")
                             })?
                             .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-
-                        return Ok(JsonAdvanced(user));
+                        let short_user_config: ShortUserConfig = user_config.into();
+                        return Ok(JsonAdvanced(LoginResult::from_user_and_user_config(
+                            user,
+                            short_user_config,
+                        )));
                     }
                     _ => {}
                 }
@@ -667,7 +680,8 @@ pub async fn renew(
         .map_err(|_| ResetTokenError::UpdateTokenError("cannot find user"))?
         .ok_or(ResetTokenError::UpdateTokenError("cannot find user"))?;
 
-    let new_token = generate_jwt(user).map_err(|_| ResetTokenError::UpdateTokenError("cannot interact with jwt"))?;
+    let new_token = generate_jwt(user)
+        .map_err(|_| ResetTokenError::UpdateTokenError("cannot interact with jwt"))?;
     //ahora actualizamos la tabla con el nuevo token
     let filter = doc! {"userId":id};
     let doc_insert_token = doc! {
@@ -701,7 +715,9 @@ pub async fn get_token(
         .await
         .map_err(|_| ResetTokenError::UpdateTokenError("no se puede obtener token"))?;
     if token_register.is_none() {
-        return Err(ResetTokenError::UpdateTokenError("no se puede obtener token"));
+        return Err(ResetTokenError::UpdateTokenError(
+            "no se puede obtener token",
+        ));
     }
     let token = token_register.unwrap().token;
     Ok(JsonAdvanced(GetTokenResult { token }))

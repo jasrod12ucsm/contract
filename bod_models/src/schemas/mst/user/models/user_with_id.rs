@@ -1,9 +1,9 @@
 use bson::{oid::ObjectId, DateTime};
 use serde::{Deserialize, Serialize};
 
-use crate::schemas::{config::user_config::models::short_user_config::ShortUserConfig, location::{country::models::short_country::ShortCountry, region::region::Region}, mst::user::user::User};
+use crate::schemas::{location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion}, mst::user::user::User};
 
-use super::identification::Identification;
+use super::{atention_hour::AtentionHour, identification::Identification};
 
 
 
@@ -15,10 +15,10 @@ pub struct UserWithId {
     #[serde(rename="_id")]
     pub id:ObjectId,
     pub frecuency: Option<Vec<String>>,
-    #[serde(rename = "userConfig")]
-    pub user_config: ShortUserConfig,
+    #[serde(rename = "userConfigId")]
+    pub user_config: ObjectId,
     pub country:ShortCountry,
-    pub region:Region,
+    pub region:ShortRegion,
     pub identification: Identification,
     pub phone: String,
     pub lvl:i32,
@@ -26,16 +26,16 @@ pub struct UserWithId {
     #[serde(rename = "parentId")]
     pub parent_id:Option<String>,
     #[serde(rename = "childsIds")]
-    pub childs_ids:Option<i32>,
+    pub childs_ids:Option<Vec<ObjectId>>,
     pub address: String,
     #[serde(rename = "typeProvider")]
-    pub type_provider: Option<String>,
+    pub type_provider: String,
     #[serde(rename = "employedBy")]
-    pub employed_by: Option<i32>,
+    pub employed_by: Option<ObjectId>,
     #[serde(rename = "closeHour")]
-    pub close_hour: Option<String>,
+    pub close_hour: AtentionHour,
     #[serde(rename = "openHour")]
-    pub open_hour: Option<String>,
+    pub open_hour: AtentionHour,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]

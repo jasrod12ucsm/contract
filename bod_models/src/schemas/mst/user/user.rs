@@ -1,36 +1,36 @@
 use async_trait::async_trait;
-use bson::{doc, DateTime};
+use bson::{doc, oid::ObjectId, DateTime};
 use mongodb::{options::IndexOptions, results::CreateIndexesResult, Client, IndexModel};
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::{config::user_config::models::short_user_config::ShortUserConfig, location::{country::models::short_country::ShortCountry, region::region::Region}}, shared::{index_functions::IndexFunctions, schema::{BaseColleccionNames, Schema}}};
+use crate::{schemas::location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion}, shared::{index_functions::IndexFunctions, schema::{BaseColleccionNames, Schema}}};
 
-use super::models::identification::Identification;
+use super::models::{atention_hour::AtentionHour, identification::Identification};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub frecuency: Option<Vec<String>>,
     pub country:ShortCountry,
-    pub region:Region,
-    #[serde(rename = "userConfig")]
-    pub user_config: ShortUserConfig,
+    pub region:ShortRegion,
+    #[serde(rename = "userConfigId")]
+    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     pub image: Option<String>,
     #[serde(rename = "parentId")]
     pub parent_id:Option<String>,
     #[serde(rename = "childsIds")]
-    pub childs_ids:Option<i32>,
+    pub childs_ids:Option<Vec<ObjectId>>,
     pub address: String,
     pub lvl:i32,
     #[serde(rename = "typeProvider")]
-    pub type_provider: Option<String>,
+    pub type_provider: String,
     #[serde(rename = "employedBy")]
-    pub employed_by: Option<i32>,
+    pub employed_by: Option<ObjectId>,
     #[serde(rename = "closeHour")]
-    pub close_hour: Option<String>,
+    pub close_hour: AtentionHour,
     #[serde(rename = "openHour")]
-    pub open_hour: Option<String>,
+    pub open_hour: AtentionHour,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime,
     #[serde(rename = "updatedAt")]
@@ -44,13 +44,14 @@ pub struct User {
 
 impl User {
     pub fn new_client(
-        user_config: ShortUserConfig,
+        user_config: ObjectId,
         identification: Identification,
         phone: String,
         address: String,
         country:ShortCountry,
-        region:Region,
+        region:ShortRegion,
         birthdate: String,
+        type_provider: String,
     ) -> User {
         User {
             birthdate,
@@ -65,10 +66,10 @@ impl User {
             address,
             parent_id: None,
             childs_ids: None,
-            type_provider: None,
+            type_provider: type_provider,
             employed_by: None,
-            close_hour: None,
-            open_hour: None,
+            close_hour: AtentionHour::create_empty(),
+            open_hour: AtentionHour::create_empty(),
             created_at: DateTime::now(),
             updated_at: DateTime::now(),
             is_active: true,
@@ -108,18 +109,18 @@ impl Schema for UserSchema {
             .collection::<User>(self.get_collection_name());
         let mut indexes: Vec<IndexModel> = vec![];
         let unique_user_config_index = IndexModel::builder()
-            .keys(doc! {"userConfig._id":1})
+            .keys(doc! {"userConfigId":1,"isDeleted":1,"isActive":1})
             .options(
                 IndexOptions::builder()
                     .unique(true)
-                    .name("userConfig._id".to_string())
+                    .name("userConfigId".to_string())
                     .build(),
             )
             .build();
 
         indexes.push(unique_user_config_index);
         let unique_parent = IndexModel::builder()
-            .keys(doc! {"parentId":1})
+            .keys(doc! {"parentId":1,"isDeleted":1,"isActive":1})
             .options(
                 IndexOptions::builder()
                     .name("parentId".to_string())
@@ -128,7 +129,7 @@ impl Schema for UserSchema {
             .build();
         indexes.push(unique_parent);
         let unique_childs = IndexModel::builder()
-            .keys(doc! {"childsIds":1})
+            .keys(doc! {"childsIds":1,"isDeleted":1,"isActive":1})
             .options(
                 IndexOptions::builder()
                     .name("childsIds".to_string())
@@ -137,10 +138,10 @@ impl Schema for UserSchema {
             .build();
         indexes.push(unique_childs);
         let employed_by_index=IndexModel::builder()
-        .keys(doc! {"employedBy._id":1})
+        .keys(doc! {"employedBy":1,"isDeleted":1,"isActive":1})
         .options(
             IndexOptions::builder()
-                .name("employedBy._id".to_string())
+                .name("employedBy".to_string())
                 .build(),
         )
         .build();

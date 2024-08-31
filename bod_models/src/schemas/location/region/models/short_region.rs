@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::region_with_id::RegionWithId;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Debug,Clone)]
 pub struct ShortRegion {
     pub code: String,
     #[serde(rename = "fullName")]

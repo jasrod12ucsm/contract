@@ -1,7 +1,7 @@
 use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::schemas::config::user_config::models::short_user_config::ShortUserConfig;
+
 
 use super::{identification::Identification, user_with_id::UserWithId};
 
@@ -14,8 +14,8 @@ use super::{identification::Identification, user_with_id::UserWithId};
 pub struct ShortUser {
     #[serde(rename="_id")]
     pub id: ObjectId,
-    #[serde(rename = "userConfig")]
-    pub user_config: ShortUserConfig,
+    #[serde(rename = "userConfigId")]
+    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     #[serde(rename = "isActive")]
