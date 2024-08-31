@@ -32,7 +32,6 @@ use bod_models::{
             user_config::{
                 models::{
                     short_user_config::ShortUserConfig, user_config_with_id::UserConfigWithId,
-                    user_config_without_password::UserConfigWithoutPassword,
                 },
                 user_config_attributes::UserConfigAttributes,
                 user_config_errors::UserConfigError,
@@ -455,7 +454,7 @@ pub async fn authenticate(
     id_path: Path<IdPath>,
     code: JsonAdvanced<AuthenticatePostCode>,
     repo: State<PublicRepository>,
-) -> Result<Json<UserConfigWithoutPassword>, UserConfigError> {
+) -> Result<Json<EmailSended>, UserConfigError> {
     //
     let id = ObjectId::from_str(id_path.id()).unwrap();
     //traermos el repo de los token
@@ -513,8 +512,7 @@ pub async fn authenticate(
             "no se actualizo ningun registro",
         ));
     }
-    let actualized_register = actualized_register.unwrap();
-    Ok(Json(actualized_register.into()))
+    Ok(Json(EmailSended { ok: true }))
 }
 
 #[web::post("login/client")]

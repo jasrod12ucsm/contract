@@ -1,6 +1,10 @@
+use bod_models::shared::errors::BaseError;
 use ntex::{http, web};
 use serde::Serialize;
-use serde_json::json;
+
+
+
+
 //multiparte
 #[derive(Debug, derive_more::Display)]
 pub enum MultipartError {
@@ -15,7 +19,7 @@ pub enum MultipartError {
 //json
 #[derive(Debug, derive_more::Display)]
 pub enum JsonError {
-    #[display(fmt = "Error reading json data")]
+    #[display(fmt = "Serialize error")]
     JsonSerializeError,
     #[display(fmt = "Error reading json data")]
     ValidationFieldsError(ValidationFieldsErrorStruct),
@@ -41,6 +45,14 @@ impl ValidationFieldsErrorStruct {
         }
     }
 }
+
+#[derive(Debug, Serialize)]
+pub struct ValidationErrorStruct {
+    pub error: String,
+    pub field: Vec<String>,
+    pub status_code: u16,
+}
+
 impl ValidationErrorStruct {
     pub fn new(field: Vec<String>) -> Self {
         Self {
@@ -51,31 +63,56 @@ impl ValidationErrorStruct {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ValidationErrorStruct {
-    pub error: String,
-    pub field: Vec<String>,
-    pub status_code: u16,
+impl From<&ValidationErrorStruct> for BaseError {
+    fn from(value: &ValidationErrorStruct) -> Self {
+        let error = value.error.clone();
+        Self {
+            error: value.error.to_owned(),
+            message: error,
+            status_code: value.status_code as i32,
+        }
+    }
+}
+
+impl From<&ValidationFieldsErrorStruct> for BaseError {
+    fn from(value: &ValidationFieldsErrorStruct) -> Self {
+        let error = value.error.clone();
+        Self {
+            error: value.error.to_owned(),
+            message: error,
+            status_code: value.status_code as i32,
+        }
+    }
 }
 
 impl web::error::WebResponseError for MultipartError {
     fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
         match *self {
             MultipartError::ValidationError(ref field) => {
+                let error: BaseError = field.into();
                 web::HttpResponse::build(self.status_code())
                     .set_header("content-type", "text/json; charset=utf-8")
-                    .json(&json!(&field))
+                    .json(&error)
             }
-            MultipartError::FileChargeError => web::HttpResponse::build(self.status_code())
-                .set_header("content-type", "text/json; charset=utf-8")
-                .json(&json!({"error":"file charge error","status_code":403})),
-            MultipartError::ValidationFieldsError(ref field) => {
+            MultipartError::FileChargeError => {
+                let error = BaseError {
+                    error: "file charge error".to_string(),
+                    message: self.to_string(),
+                    status_code: self.status_code().as_u16() as i32,
+                };
                 web::HttpResponse::build(self.status_code())
                     .set_header("content-type", "text/json; charset=utf-8")
-                    .json(&json!(&field))
+                    .json(&error)
+            }
+            MultipartError::ValidationFieldsError(ref field) => {
+                let error: BaseError = field.into();
+                web::HttpResponse::build(self.status_code())
+                    .set_header("content-type", "text/json; charset=utf-8")
+                    .json(&error)
             }
         }
     }
+
     fn status_code(&self) -> http::StatusCode {
         match *self {
             MultipartError::ValidationError { .. } => http::StatusCode::BAD_REQUEST,
@@ -95,23 +132,44 @@ impl web::error::WebResponseError for JsonError {
         }
     }
 
-    fn error_response(&self, _: &web::HttpRequest) -> http::Response {
+    fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
         match *self {
-            JsonError::InternalServerError => http::Response::build(self.status_code())
-                .json(&json!({"error":"internal server error","status_code":403})),
-            JsonError::JsonSerializeError => http::Response::build(self.status_code())
-                .set_header("content-type", "text/json; charset=utf-8")
-                .json(&json!({"error":"serialize error","status_code":403})),
-            JsonError::ValidationFieldsError(ref field) => {
-                http::Response::build(self.status_code())
+            JsonError::InternalServerError => {
+                let error = BaseError {
+                    error: "internal server error".to_string(),
+                    message: self.to_string(),
+                    status_code: self.status_code().as_u16() as i32,
+                };
+                web::HttpResponse::build(self.status_code())
                     .set_header("content-type", "text/json; charset=utf-8")
-                    .json(&field)
+                    .json(&error)
             }
-            JsonError::JsonBasicTransformError => http::Response::build(self.status_code())
-                .set_header("content-type", "text/json; charset=utf-8")
-                .json(&json!({"error":self.to_string(), "status_code":403})),
+            JsonError::JsonSerializeError => {
+                let error = BaseError {
+                    error: "serialize error".to_string(),
+                    message: self.to_string(),
+                    status_code: self.status_code().as_u16() as i32,
+                };
+                web::HttpResponse::build(self.status_code())
+                    .set_header("content-type", "text/json; charset=utf-8")
+                    .json(&error)
+            }
+            JsonError::ValidationFieldsError(ref field) => {
+                let error: BaseError = field.into();
+                web::HttpResponse::build(self.status_code())
+                    .set_header("content-type", "text/json; charset=utf-8")
+                    .json(&error)
+            }
+            JsonError::JsonBasicTransformError => {
+                let error = BaseError {
+                    error: "transform payload error".to_string(),
+                    message: self.to_string(),
+                    status_code: self.status_code().as_u16() as i32,
+                };
+                web::HttpResponse::build(self.status_code())
+                    .set_header("content-type", "text/json; charset=utf-8")
+                    .json(&error)
+            }
         }
     }
 }
-
-

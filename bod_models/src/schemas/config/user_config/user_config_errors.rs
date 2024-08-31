@@ -1,6 +1,8 @@
 use derive_more::Display;
 use ntex::{http, web};
-use serde_json::json;
+
+use crate::shared::errors::BaseError;
+
 
 #[derive(Debug, Display)]
 pub enum UserConfigError {
@@ -26,19 +28,25 @@ pub enum UserConfigError {
 
 impl web::error::WebResponseError for UserConfigError {
     fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
-        match *self {
-            UserConfigError::CreateUserError(msg) |
-            UserConfigError::GetUserError(msg) |
-            UserConfigError::DeleteUserError(msg) |
-            UserConfigError::UpdateUserError(msg) |
-            UserConfigError::GetUsersError(msg) |
-            UserConfigError::PasswordIncorrect(msg) |
-            UserConfigError::LoginUserError(msg) |
-            UserConfigError::UserAlreadyExists(msg) |
-            UserConfigError::AuthenticateError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header("content-type", "application/json; charset=utf-8")
-                .json(&json!({ "error": self.to_string(), "statudCode": 404, "message": msg })),
-        }
+        let error = match *self {
+            UserConfigError::CreateUserError(msg)
+            | UserConfigError::GetUserError(msg)
+            | UserConfigError::DeleteUserError(msg)
+            | UserConfigError::UpdateUserError(msg)
+            | UserConfigError::GetUsersError(msg)
+            | UserConfigError::PasswordIncorrect(msg)
+            | UserConfigError::LoginUserError(msg)
+            | UserConfigError::UserAlreadyExists(msg)
+            | UserConfigError::AuthenticateError(msg) => BaseError {
+                error: self.to_string(),
+                message: msg.to_string(),
+                status_code: self.status_code().as_u16() as i32,
+            },
+        };
+
+        web::HttpResponse::build(self.status_code())
+            .set_header("content-type", "application/json; charset=utf-8")
+            .json(&error)
     }
 
     fn status_code(&self) -> http::StatusCode {

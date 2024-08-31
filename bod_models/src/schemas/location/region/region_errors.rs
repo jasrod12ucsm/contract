@@ -1,6 +1,7 @@
 use derive_more::Display;
 use ntex::{http, web};
-use serde_json::json;
+
+use crate::shared::errors::BaseError;
 
 #[derive(Debug, Display)]
 pub enum RegionError {
@@ -9,7 +10,7 @@ pub enum RegionError {
     #[display(fmt = "Error Getting Region")]
     GetRegionError(&'static str),
     #[display(fmt = "Error Deleting Region")]
-    DeleteRegionError(&'static str),
+    DeleteRegionError(String), // Add a message parameter of type String
     #[display(fmt = "Error Updating Region")]
     UpdateRegionError(&'static str),
     #[display(fmt = "Error Getting Regions")]
@@ -18,35 +19,22 @@ pub enum RegionError {
 
 impl web::error::WebResponseError for RegionError {
     fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
-        match self {
-            RegionError::CreateRegionError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header("content-type", "application/json; charset=utf-8")
-                .json(&json!({ "error": self.to_string(), "statusCode": 400, "message": msg })),
-            RegionError::GetRegionError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error": self.to_string(), "statusCode": 400, "message": msg})),
-            RegionError::DeleteRegionError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error": self.to_string(), "statusCode": 400, "message": msg})),
-            RegionError::UpdateRegionError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error": self.to_string(), "statusCode": 400, "message": msg})),
-            RegionError::GetRegionsError(msg) => web::HttpResponse::build(self.status_code())
-                .set_header(
-                    ntex::http::header::CONTENT_TYPE,
-                    mime::APPLICATION_JSON.to_string(),
-                )
-                .json(&json!({"error": self.to_string(), "statusCode": 400, "message": msg})),
-        }
+        let error = match self {
+            RegionError::CreateRegionError(msg) | RegionError::DeleteRegionError(msg) => {
+                BaseError::new(self.to_string(), msg.to_owned(), self.status_code().as_u16() as i32)
+            }
+            RegionError::GetRegionError(msg)
+            | RegionError::UpdateRegionError(msg)
+            | RegionError::GetRegionsError(msg) => BaseError {
+                error: self.to_string(),
+                message: msg.to_string(),
+                status_code: self.status_code().as_u16() as i32,
+            },
+        };
+
+        web::HttpResponse::build(self.status_code())
+            .set_header("content-type", "application/json; charset=utf-8")
+            .json(&error)
     }
 
     fn status_code(&self) -> http::StatusCode {

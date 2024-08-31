@@ -1,8 +1,11 @@
 use derive_more::Display;
 use ntex::{http, web};
-use serde_json::json;
+use serde::Serialize;
 
-#[derive(Debug, Display)]
+use crate::shared::errors::BaseError;
+
+
+#[derive(Debug, Display,Serialize)]
 pub enum EmailTemplateError {
     #[display(fmt = "Error Getting Email Template")]
     GetEmailTemplateError(&'static str),
@@ -16,16 +19,20 @@ pub enum EmailTemplateError {
 
 impl web::error::WebResponseError for EmailTemplateError {
     fn error_response(&self, _: &web::HttpRequest) -> web::HttpResponse {
-        match *self {
+        let error = match *self {
             EmailTemplateError::GetEmailTemplateError(msg)
             | EmailTemplateError::DeleteEmailTemplateError(msg)
             | EmailTemplateError::UpdateEmailTemplateError(msg)
-            | EmailTemplateError::TemplateNotFoundError(msg) => {
-                web::HttpResponse::build(self.status_code())
-                    .set_header("content-type", "application/json; charset=utf-8")
-                    .json(&json!({ "error": self.to_string(), "statusCode": 404, "message": msg }))
-            }
-        }
+            | EmailTemplateError::TemplateNotFoundError(msg) => BaseError {
+                error: self.to_string(),
+                message: msg.to_string(),
+                status_code: self.status_code().as_u16() as i32,
+            },
+        };
+
+        web::HttpResponse::build(self.status_code())
+            .set_header("content-type", "application/json; charset=utf-8")
+            .json(&error)
     }
 
     fn status_code(&self) -> http::StatusCode {

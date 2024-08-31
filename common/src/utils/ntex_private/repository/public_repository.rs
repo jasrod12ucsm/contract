@@ -1,16 +1,15 @@
-use std::{borrow::Borrow, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bod_models::shared::schema::BaseColleccionNames;
 use mongodb::{
-    action::{gridfs::Find, FindOneAndUpdate, InsertOne, Update},
-    bson::{doc, document, DateTime},
+    action::{FindOneAndUpdate, InsertOne, Update},
+    bson::{doc, DateTime},
     error::Error,
     options::{
         ClientOptions, Compressor, ReadPreference, ReadPreferenceOptions, ReturnDocument,
         SelectionCriteria, ServerApiVersion,
     },
-    results::InsertOneResult,
     Client, ClientSession, Collection,
 };
 use serde::{de::DeserializeOwned, Serialize};
