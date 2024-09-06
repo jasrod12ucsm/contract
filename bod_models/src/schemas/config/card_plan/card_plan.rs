@@ -3,8 +3,6 @@ use bson::{doc, DateTime};
 use mongodb::{options::IndexOptions, results::CreateIndexesResult, Client, IndexModel};
 use serde::{Deserialize, Serialize};
 
-
-
 use crate::shared::{index_functions::IndexFunctions, schema::{BaseColleccionNames, Schema}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,12 +12,28 @@ pub struct PriceItems {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CardPlan {
-    pub order:i32,
+pub struct Render {
+    pub order: i32,
     pub button: String,
     pub price: i32,
     pub shape: String,
     pub items: Vec<PriceItems>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestaurantsData {
+    pub total_price: i32,
+    pub plan_token: String,
+    #[serde(rename = "numRestaurants")]
+    pub num_restaurants: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CardPlan {
+    pub render: Render,
+    pub price_per_restaurant: i32,
+    #[serde(rename = "restaurantsData")]
+    pub restaurants_data: Vec<RestaurantsData>,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "updatedAt")]
@@ -27,13 +41,15 @@ pub struct CardPlan {
 }
 
 impl CardPlan {
-    pub fn new(button: String, price: i32, shape: String, items: Vec<PriceItems>,order:i32) -> CardPlan {
+    pub fn new(
+        render: Render,
+        price_per_restaurant: i32,
+        restaurants_data: Vec<RestaurantsData>,
+    ) -> CardPlan {
         CardPlan {
-            order,
-            button,
-            price,
-            shape,
-            items,
+            render,
+            price_per_restaurant,
+            restaurants_data,
             is_active: true,
             updated_at: DateTime::now(),
         }
@@ -80,8 +96,6 @@ impl Schema for CardPlanSchema {
             )
             .build();
         indexes.push(is_active_index);
-
-
 
         let updated_at_index = IndexModel::builder()
             .keys(doc! {"updatedAt": 1})

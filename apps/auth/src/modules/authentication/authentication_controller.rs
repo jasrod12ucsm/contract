@@ -284,6 +284,7 @@ pub async fn singup_client(
     let data_to_return = UserId {
         user: user_inserted.id.to_string(),
         user_config_id: user_config_inserted.id.to_string(),
+        email:user_config_inserted.email
     };
 
     //usa el email template repository para buscar

@@ -3,11 +3,20 @@ use crate::{
         data::update_cardplan_dto::UpdateCardPlanDto,
         models::card_plan_projection::CardPlanProjection,
     },
-    utils::repositories::card_plan_repositoy::CardPlanRepository,
+    utils::{
+        domain::{
+            datasources::culqi_datasource_trait::CulqiDataSourceTrait,
+            models::create_culqi_plan::{CreateCulqiPlan, Currency, InitialCycles, IntervalUnitTime},
+        },
+        infraestructure::{
+            datasources::culqi_datasource::CulqiDatasource,
+            repositories::{card_plan_repositoy::CardPlanRepository, company_repository},
+        },
+    },
 };
-use bod_models::schemas::config::card_plan::{
+use bod_models::schemas::config::{card_plan::{
     card_plan_error::CardPlanError, models::card_plan_with_id::CardPlanWithId,
-};
+}, company::company::Company};
 use bson::{doc, oid::ObjectId};
 use common::{
     public::models::path::IdPath,
@@ -16,8 +25,8 @@ use common::{
         repository::public_repository::{AbstractRepository, PublicRepository},
     },
 };
+
 use futures::StreamExt;
-use mongodb::Collection;
 use ntex::web::{
     self,
     types::{Path, State},
@@ -31,30 +40,10 @@ pub async fn get_all_card_plans(
         .get_repository::<CardPlanRepository>()
         .await
         .map_err(|_| CardPlanError::GetCardPlansError("Internal serve error"))?;
-    let card_plan_projection_collection: Collection<CardPlanProjection> =
-        card_plan_repository.construct_new_collection();
-    let mut card_plans = card_plan_repository
-        .find_generic(doc! {"noDeleted":true}, &card_plan_projection_collection)
-        .sort(doc! {"order": 1})
-        .projection(doc! {
-            "order": 0,
-            "isActive": 0,
-            "updatedAt": 0,
-            "_id": 0
-        })
-        .await
-        .map_err(|_| CardPlanError::GetCardPlansError("Data failure"))?;
-    let mut card_plans_vector = vec![];
-    while let Some(card_plan) = card_plans.next().await {
-        if card_plan.is_err() {
-            return Err(CardPlanError::GetCardPlansError(
-                "One or more card plans not found",
-            ));
-        }
-        let card_plan = card_plan.unwrap();
-        card_plans_vector.push(card_plan);
-    }
-    Ok(JsonAdvanced(card_plans_vector))
+    let card_plans = card_plan_repository
+        .get_card_plan_projection_collection()
+        .await?;
+    Ok(JsonAdvanced(card_plans))
 }
 
 #[web::put("update/{id}")]
@@ -67,22 +56,78 @@ pub async fn update_card_plan(
         .get_repository::<CardPlanRepository>()
         .await
         .map_err(|_| CardPlanError::UpdateCardPlanError("update card plan error"))?;
+    let company_repository: company_repository::CompanyRepository = repo
+        .get_repository::<company_repository::CompanyRepository>()
+        .await
+        .map_err(|_| CardPlanError::UpdateCardPlanError("update card plan error"))?;
+    let culqi_plan_repository: CulqiPlanRepository = repo
+        .get_repository::<CulqiPlanRepository>()
+        .await
+        .map_err(|_| CardPlanError::UpdateCardPlanError("update card plan error"))?;
+
     let card_plan_id = ObjectId::parse_str(path.id())
         .map_err(|_| CardPlanError::UpdateCardPlanError("error parsing id"))?;
-
     let mut update_doc = doc! {};
-    if let Some(button) = &update_dto.button {
-        update_doc.insert("button", button);
-    }
+    let mut new_tokens = vec![];
 
-    if let Some(price) = update_dto.price {
-        update_doc.insert("price", price);
+    if let Some(value) = &update_dto.render {
+        if let Some(button) = &value.button {
+            update_doc.insert("button", button);
+        }
+
+        if let Some(price) = &value.price {
+            update_doc.insert("price", price);
+
+            // Crear nuevos planes en Culqi para cada restaurante
+            for num_restaurants in 1..=100 {
+                let plan = CreateCulqiPlan::builder()
+                    .name(format!("Plan {} Restaurantes", num_restaurants))
+                    .short_name(format!("Plan{}", num_restaurants))
+                    .description(format!("Plan para {} restaurantes", num_restaurants))
+                    .amount(price * num_restaurants)
+                    .currency(Currency::PEN)
+                    .interval_unit_time(IntervalUnitTime::Monthly)
+                    .interval_count(1)
+                    .initial_cycles(InitialCycles {
+                        count: 1,
+                        has_initial_charge: true,
+                        amount: price * num_restaurants,
+                        interval_unit_time: IntervalUnitTime::Monthly,
+                    })
+                    .build()
+                    .map_err(|_| {
+                        CardPlanError::UpdateCardPlanError("Failed to build CreateCulqiPlan")
+                    })?;
+
+                let response = culqi_plan_repository.create_plan(plan).await.map_err(|_| {
+                    CardPlanError::UpdateCardPlanError("Failed to create plan in Culqi")
+                })?;
+
+                new_tokens.push(response.id);
+            }
+
+            let restaurants_data: Vec<bson::Document> = (1..=100)
+                .map(|num_restaurants| {
+                    doc! {
+                        "totalPrice": price * num_restaurants,
+                        "planToken": new_tokens[num_restaurants as usize - 1].clone(),
+                        "numRestaurants": num_restaurants
+                    }
+                })
+                .collect();
+
+            update_doc.insert("restaurantsData", bson::to_bson(&restaurants_data).unwrap());
+        }
+
+        if let Some(shape) = &value.shape {
+            update_doc.insert("shape", shape);
+        }
+        if let Some(items) = &value.items {
+            update_doc.insert("items", bson::to_bson(items).unwrap());
+        }
     }
-    if let Some(shape) = &update_dto.shape {
-        update_doc.insert("shape", shape);
-    }
-    if let Some(items) = &update_dto.items {
-        update_doc.insert("items", bson::to_bson(items).unwrap());
+    if let Some(price_per_restaurant) = &update_dto.price_per_restaurant {
+        update_doc.insert("pricePerRestaurant", price_per_restaurant);
     }
 
     let document_to_update = doc! {
@@ -94,5 +139,39 @@ pub async fn update_card_plan(
         .await
         .map_err(|_| CardPlanError::UpdateCardPlanError("can't update plan"))?
         .ok_or_else(|| CardPlanError::UpdateCardPlanError("Card plan not found"))?;
+
+    // Obtener todas las compañías activas y no borradas
+    let active_companies = company_repository
+        .find(doc! {})
+        .await
+        .map_err(|_| CardPlanError::UpdateCardPlanError("Failed to fetch active companies"))?;
+    let companies=vec![];
+    while let Some(result) = active_companies.next().await {
+        match result {
+            Ok(document) => {
+                companies.push(document);
+            }
+            Err(_) => {
+                return Err(CardPlanError::UpdateCardPlanError(
+                    "Failed to fetch active companies",
+                ))
+            }
+        }
+    }
+
+    // Cancelar suscripciones existentes para cada compañía
+    for company in companies {
+        let num_restaurants = company.;
+        let subscription_id = company.subscription_id;
+
+        // Cancelar la suscripción existente
+        let cancel_response = company_repository
+            .cancel_subscription(&subscription_id)
+            .await
+            .map_err(|_| CardPlanError::UpdateCardPlanError("Failed to cancel subscription"))?;
+
+        // Aquí puedes agregar lógica adicional si es necesario
+    }
+
     Ok(JsonAdvanced(card_plan_updated))
 }

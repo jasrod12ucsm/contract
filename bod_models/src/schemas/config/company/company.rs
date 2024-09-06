@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bson::doc;
+use bson::{doc, oid::ObjectId, DateTime};
 use mongodb::{options::IndexOptions, results::CreateIndexesResult, Client, IndexModel};
 use serde::{Deserialize, Serialize};
 
@@ -17,40 +17,55 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 pub struct Company {
+    sensible:Sensible,
     logo: String,
-    #[serde(rename = "mediumLogo")]
-    medium_logo: String,
+    #[serde(rename = "largeLogo")]
+    large_logo: String,
+    #[serde(rename = "smallLogo")]
+    small_logo: String,
     emails: Vec<String>,
-
-    company_type: String, // F o S
-    #[serde(rename = "paymentPrice")]
-    payment_price: String,
     name: String,
     #[serde(rename = "dispĺayName")]
     display_name: String,
-    permissions: String,
     user: ShortUser,
     country: ShortCountry,
     region: Region,
-    website: String,
+    website: Option<String>,
     #[serde(rename="employeeCount")]
     employee_count: String,
     vision: String,
     mission: String,
-    principal_category: String,
-    #[serde(rename = "securityPolicies")]
-    security_policies: Option<String>, // Políticas de seguridad de la compañía
-    #[serde(rename = "legalAspects")]
-    legal_aspects: Option<String>, // Información sobre aspectos legales
-    #[serde(rename = "termsAndConditions")]
-    terms_and_conditions: Option<String>, // Términos y condiciones
-    #[serde(rename = "privacyPolicy")]
-    privacy_policy: Option<String>, // Política de privacidad
-    #[serde(rename = "compliance")]
-    compliance: Option<String>, // Información sobre cumplimiento normativo
+    categories: Option<ObjectId>,
+    social: SocialNetworks,
+    #[serde(rename="createdAt")]
+    created_at: DateTime,
+    #[serde(rename="updatedAt")]
+    updated_at: DateTime,
+    #[serde(rename="isDeleted")]
+    is_deleted: bool,
+    #[serde(rename="isActive")]
+    is_active: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Debug,Clone)]
+pub struct Sensible{
+    #[serde(rename = "creditCards")]
+    credit_cards: Vec<SensibleCard>,//la que esta en la posicion 0 es la principal la que esta rindiendo actualmente
+    subscription: String,
+    #[serde(rename = "clientToken")]
+    client_token: String,
+}
+#[derive(Serialize, Deserialize,Debug,Clone)]
+pub struct SensibleCard{
+    token: String,
+    #[serde(rename = "lastFourDigits")]
+    last_four_digits: i32,
+    #[serde(rename = "isUsedCard")]
+    is_used_card: bool,
+}
+
+
+#[derive(Serialize, Deserialize,Debug,Clone)]
 pub struct SocialNetworks {
     #[serde(rename = "whatsAppNumbers")]
     whats_app_numbers: Option<Vec<String>>,
@@ -67,7 +82,6 @@ pub struct SocialNetworks {
     telegram: Option<String>,
     wechat: Option<String>,
     reddit: Option<String>,
-    github: Option<String>,
 }
 
 pub struct CompanySchema;

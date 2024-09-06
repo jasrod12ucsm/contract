@@ -1,12 +1,21 @@
 use bod_models::{
-    schemas::config::card_plan::{card_plan::CardPlan, models::card_plan_with_id::CardPlanWithId}, shared::schema::BaseColleccionNames
+    schemas::config::card_plan::{
+        card_plan::CardPlan, card_plan_error::CardPlanError,
+        models::card_plan_with_id::CardPlanWithId,
+    },
+    shared::schema::BaseColleccionNames,
 };
+use bson::doc;
 use common::utils::ntex_private::repository::public_repository::{
     PublicRepository, Repository, SetPublicRepository,
 };
+use futures::StreamExt;
 use lazy_static::lazy_static;
 use mongodb::{Client, Collection};
+
 use std::sync::{Arc, Mutex};
+
+use crate::modules::card_plan::models::card_plan_projection::CardPlanProjection;
 
 lazy_static! {
     pub static ref CARD_PLAN_REPOSITORY: Arc<Mutex<Option<CardPlanRepository>>> =
@@ -48,6 +57,48 @@ impl CardPlanRepository {
             client: client.clone(),
             collection_id,
         })
+    }
+
+    pub async fn get_card_plan_projection_collection(
+        &self,
+    ) -> Result<Vec<CardPlanProjection>, CardPlanError> {
+        let mut cursor = self.collection
+            .aggregate(vec![
+                doc! { "$match": { "isActive": true } },
+                doc! { "$sort": { "render.order": 1 } },
+                doc! {
+                    "$project": {
+                        "button": "$render.button",
+                        "price": "$render.price",
+                        "shape": "$render.shape",
+                        "items": "$render.items",
+                        "_id": 0
+                        // ... (other fields to project)
+                    }
+                },
+            ])
+            .await
+            .map_err(|_| CardPlanError::GetCardPlansError("process failed getting card plan"))?;
+
+        let mut card_plans = Vec::new();
+        while let Some(result) = cursor.next().await {
+            match result {
+                Ok(document) => {
+                    let card_plan: CardPlanProjection =
+                        bson::from_document(document).map_err(|_| {
+                            CardPlanError::GetCardPlansError("process failed getting card plan")
+                        })?;
+                    card_plans.push(card_plan);
+                }
+                Err(_) => {
+                    return Err(CardPlanError::GetCardPlansError(
+                        "process failed getting card plan",
+                    ))
+                }
+            }
+        }
+
+        Ok(card_plans)
     }
 }
 
