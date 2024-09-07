@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::utils::domain::{datasources::culqi_datasource_trait::CulqiDataSourceTrait, models::{
-    culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse, culqi_error::CulqiError,
+    culqi_create_subscription::CulqiCreateSubscription, culqi_create_subscription_response::CulqiCreateSubscriptionResponse, culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse, culqi_error::CulqiError
 }};
 #[async_trait]
 pub trait CulqiSubscriptionRepositoryTrait<'a> {
@@ -11,4 +11,9 @@ pub trait CulqiSubscriptionRepositoryTrait<'a> {
         &self,
         id: &str,
     ) -> Result<CulqiDeleteSubscriptionResponse, CulqiError>;
+
+    async fn create_subscription(
+        &self,
+        create_subscription:CulqiCreateSubscription
+    ) -> Result<CulqiCreateSubscriptionResponse, CulqiError>;
 }

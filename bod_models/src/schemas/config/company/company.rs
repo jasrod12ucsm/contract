@@ -35,6 +35,10 @@ pub struct Company {
     employee_count: String,
     vision: String,
     mission: String,
+    #[serde(rename="quantityRestaurant")]
+    quantity_restaurant: i32,
+    #[serde(rename="cardPlan")]
+    card_plan: ObjectId,
     categories: Option<ObjectId>,
     social: SocialNetworks,
     #[serde(rename="createdAt")]
@@ -50,18 +54,18 @@ pub struct Company {
 #[derive(Serialize, Deserialize,Debug,Clone)]
 pub struct Sensible{
     #[serde(rename = "creditCards")]
-    credit_cards: Vec<SensibleCard>,//la que esta en la posicion 0 es la principal la que esta rindiendo actualmente
-    subscription: String,
+    pub credit_cards: Vec<SensibleCard>,//la que esta en la posicion 0 es la principal la que esta rindiendo actualmente
+    pub subscription: String,
     #[serde(rename = "clientToken")]
-    client_token: String,
+    pub client_token: String,
 }
 #[derive(Serialize, Deserialize,Debug,Clone)]
 pub struct SensibleCard{
-    token: String,
+    pub token: String,
     #[serde(rename = "lastFourDigits")]
-    last_four_digits: i32,
+    pub last_four_digits: i32,
     #[serde(rename = "isUsedCard")]
-    is_used_card: bool,
+    pub is_used_card: bool,
 }
 
 

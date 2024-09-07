@@ -18,6 +18,8 @@ pub struct CompanyAttributes {
     pub large_logo: String,
     #[serde(rename = "smallLogo")]
     pub small_logo: String,
+    #[serde(rename = "quantityRestaurant")]
+    pub quantity_restaurant: i32,
     pub emails: Vec<String>,
     pub name: String,
     #[serde(rename = "dispĺayName")]
@@ -25,6 +27,8 @@ pub struct CompanyAttributes {
     pub user: ShortUser,
     pub country: ShortCountry,
     pub region: Region,
+    #[serde(rename = "cardPlan")]
+    card_plan: ObjectId,
     pub website: Option<String>,
     #[serde(rename = "employeeCount")]
     pub employee_count: String,
@@ -51,10 +55,12 @@ pub struct CompanyAttributesBuilder {
     country: Option<ShortCountry>,
     region: Option<Region>,
     website: Option<Option<String>>,
+    quantity_restaurant: Option<i32>,
     employee_count: Option<String>,
     vision: Option<String>,
     mission: Option<String>,
     categories: Option<Option<ObjectId>>,
+    card_plan: Option<ObjectId>,
     social: Option<SocialNetworks>,
     is_deleted: Option<bool>,
     is_active: Option<bool>,
@@ -63,6 +69,8 @@ pub struct CompanyAttributesBuilder {
 impl CompanyAttributesBuilder {
     pub fn new() -> Self {
         Self {
+            card_plan: None,
+            quantity_restaurant: None,
             id: None,
             sensible: None,
             logo: None,
@@ -179,6 +187,14 @@ impl CompanyAttributesBuilder {
         self.is_active = Some(is_active);
         self
     }
+    pub fn with_quantity_restaurant(mut self, quantity_restaurant: i32) -> Self {
+        self.quantity_restaurant = Some(quantity_restaurant);
+        self
+    }
+    pub fn with_card_plan(mut self, card_plan: ObjectId) -> Self {
+        self.card_plan = Some(card_plan);
+        self
+    }
 
     pub fn build(self) -> Result<CompanyAttributes, &'static str> {
         Ok(CompanyAttributes {
@@ -198,7 +214,11 @@ impl CompanyAttributesBuilder {
             vision: self.vision.ok_or("vision is required")?,
             mission: self.mission.ok_or("mission is required")?,
             categories: self.categories.unwrap_or(None),
+            quantity_restaurant: self
+                .quantity_restaurant
+                .ok_or("quantity_restaurant is required")?,
             social: self.social.ok_or("social is required")?,
+            card_plan: self.card_plan.ok_or("card_plan is required")?,
             is_deleted: self.is_deleted.ok_or("is_deleted is required")?,
             is_active: self.is_active.ok_or("is_active is required")?,
         })

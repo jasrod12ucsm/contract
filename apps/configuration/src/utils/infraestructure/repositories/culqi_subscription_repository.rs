@@ -3,8 +3,7 @@ use async_trait::async_trait;
 use crate::utils::domain::{
     datasources::culqi_datasource_trait::CulqiDataSourceTrait,
     models::{
-        culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse,
-        culqi_error::CulqiError,
+        culqi_create_subscription::CulqiCreateSubscription, culqi_create_subscription_response::CulqiCreateSubscriptionResponse, culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse, culqi_error::CulqiError
     },
     repositories::culqi_subscription_repository_trait::CulqiSubscriptionRepositoryTrait,
 };
@@ -26,6 +25,14 @@ impl<'a> CulqiSubscriptionRepositoryTrait<'a> for CulqiSubscriptionRepository<'a
         id: &str,
     ) -> Result<CulqiDeleteSubscriptionResponse, CulqiError> {
         let response = self.culqi_datasource.delete_subscription(id).await?;
+        Ok(response)
+    }
+
+    async fn create_subscription(
+        &self,
+        create_subscription: CulqiCreateSubscription,
+    ) -> Result<CulqiCreateSubscriptionResponse, CulqiError>{
+        let response=self.create_subscription(create_subscription).await?;
         Ok(response)
     }
 }

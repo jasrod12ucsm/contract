@@ -9,12 +9,17 @@ use common::{
 use modules::card_plan::card_plan_scope::card_plan_scope;
 use ntex::web::{self, scope};
 use ntex_cors::Cors;
+use utils::{domain::datasources::culqi_datasource_trait::CulqiDataSourceTrait, infraestructure::datasources::culqi_datasource::CulqiDatasource};
 pub mod modules;
 pub mod utils;
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
     let port = ENV.get_int("CONFIGURATION_PORT").expect("not port sended") as u16;
+
+    {
+        let _ = CulqiDatasource::new();
+    }
 
     //crear rpatron repository
     let public_repository = PublicRepository::connect()
