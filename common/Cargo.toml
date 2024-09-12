@@ -27,5 +27,9 @@ lettre = "0.11.7"
 reqwest = { version = "0.12.5", features = ["blocking", "json"] }
 bod_models={path = "../bod_models"}
 if-addrs = "0.13.2"
+chrono = "0.4.38"
+tzf-rs = "0.4.9"
+chrono-tz = "0.10.0"
+bson = "2.12.0"
 
 
