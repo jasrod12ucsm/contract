@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct Company {
     sensible:Sensible,
     logo: String,

@@ -5,7 +5,11 @@ use reqwest::Client;
 use crate::utils::domain::{
     datasources::culqi_datasource_trait::CulqiDataSourceTrait,
     models::{
-        create_culqi_plan::CreateCulqiPlan, culqi_create_plan_response::CulqiCreatePlanResponse, culqi_create_subscription::CulqiCreateSubscription, culqi_create_subscription_response::CulqiCreateSubscriptionResponse, culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse, culqi_error::CulqiError
+        create_culqi_plan::CreateCulqiPlan, culqi_create_plan_response::CulqiCreatePlanResponse,
+        culqi_create_subscription::CulqiCreateSubscription,
+        culqi_create_subscription_response::CulqiCreateSubscriptionResponse,
+        culqi_delete_subscription_response::CulqiDeleteSubscriptionResponse,
+        culqi_error::CulqiError, culqi_get_subscription_response::CulqiGetSubscriptionResponse,
     },
 };
 
@@ -142,6 +146,41 @@ impl CulqiDataSourceTrait for CulqiDatasource {
                 user_message: "There was an issue with the integration with Culqi. Please contact support.".to_string(),
             })?;
             Ok(created_subscription)
+        } else {
+            let error_response = response.json::<CulqiError>().await.map_err(|_| CulqiError {
+                object: "error".to_string(),
+                _type: "parse_error".to_string(),
+                merchant_message: "Failed to parse error response from Culqi API.".to_string(),
+                user_message: "There was an issue with the integration with Culqi. Please contact support.".to_string(),
+            })?;
+            Err(error_response)
+        }
+    }
+    async fn get_subscription(&self, id: &str) -> Result<CulqiGetSubscriptionResponse, CulqiError> {
+        let response = self
+            .client
+            .get(format!(
+                "{}{}",
+                &self.url,
+                format!("/recurrent/subscriptions/{}", id)
+            ))
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", self.secret_key)).send().await.map_err(|_| CulqiError {
+                object: "error".to_string(),
+                _type: "request_error".to_string(),
+                merchant_message: "Failed to send request to Culqi API.".to_string(),
+                user_message:
+                    "There was an issue with the integration with Culqi. Please contact support."
+                        .to_string(),
+            })?;
+        if response.status().is_success() {
+            let subscription = response.json::<CulqiGetSubscriptionResponse>().await.map_err(|_| CulqiError {
+                object: "error".to_string(),
+                _type: "parse_error".to_string(),
+                merchant_message: "Failed to parse response from Culqi API.".to_string(),
+                user_message: "There was an issue with the integration with Culqi. Please contact support.".to_string(),
+            })?;
+            Ok(subscription)
         } else {
             let error_response = response.json::<CulqiError>().await.map_err(|_| CulqiError {
                 object: "error".to_string(),

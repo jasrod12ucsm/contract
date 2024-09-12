@@ -38,8 +38,7 @@ use bod_models::{
             },
         },
         mst::user::{
-            models::identification::Identification,
-            user_attributes::UserAttributes,
+            models::identification::Identification, user_attributes::UserAttributes,
             user_errors::UserError,
         },
     },
@@ -84,6 +83,8 @@ pub async fn singup_client(
         country_code,
         region_code,
         birthdate,
+        latitude_store,
+        longitude_store,
     } = register_dto.into_inner();
     //iniciamos repositorios
     let user_config_repository: UserConfigRepository = repo
@@ -220,7 +221,7 @@ pub async fn singup_client(
         country.into(),
         region.into(),
         birthdate,
-        "C".to_string()
+        "C".to_string(),
     );
     let doc_insert_user = doc! {
         "$set":bson::to_bson(&user).unwrap()
@@ -284,7 +285,7 @@ pub async fn singup_client(
     let data_to_return = UserId {
         user: user_inserted.id.to_string(),
         user_config_id: user_config_inserted.id.to_string(),
-        email:user_config_inserted.email
+        email: user_config_inserted.email,
     };
 
     //usa el email template repository para buscar
@@ -599,7 +600,7 @@ pub async fn login_client(
                 let short_user_config: ShortUserConfig = user_config.into();
                 return Ok(JsonAdvanced(LoginResult::from_user_and_user_config(
                     user,
-                    short_user_config
+                    short_user_config,
                 )));
             }
             Err(err) => {

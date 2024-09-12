@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::schemas::config::card_plan::card_plan::{Render, RestaurantsData};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct CardPlanWithId {
     #[serde(rename = "_id")]
     pub id: ObjectId,
@@ -15,6 +15,8 @@ pub struct CardPlanWithId {
     pub is_active: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
+    #[serde(rename = "priceActualizedDate")]
+    pub price_actualized_date: Option<DateTime>,
 }
 
 impl CardPlanWithId {
@@ -27,6 +29,7 @@ impl CardPlanWithId {
         updated_at: DateTime,
     ) -> Self {
         Self {
+            price_actualized_date: None,
             id,
             render,
             price_per_restaurant,

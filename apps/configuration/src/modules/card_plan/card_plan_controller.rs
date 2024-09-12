@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     modules::card_plan::{
         data::update_cardplan_dto::UpdateCardPlanDto,
@@ -22,7 +24,7 @@ use crate::{
 use bod_models::schemas::config::card_plan::{
     card_plan_error::CardPlanError, models::card_plan_with_id::CardPlanWithId,
 };
-use bson::{doc, oid::ObjectId};
+use bson::{doc, oid::ObjectId, DateTime};
 use common::{
     public::models::path::IdPath,
     utils::ntex_private::{
@@ -77,12 +79,15 @@ pub async fn update_card_plan(
     let mut update_doc = doc! {};
     let mut new_tokens = vec![];
     let mut render_doc = doc! {};
+    let mut was_initialized_date_updated = Rc::new(false);
     if let Some(value) = &update_dto.render {
         if let Some(button) = &value.button {
             render_doc.insert("button", button);
         }
-
         if let Some(price) = &value.price {
+            update_doc.insert("priceActualizedDate", DateTime::now());
+            let was_initialized = Rc::make_mut(&mut was_initialized_date_updated);
+            *was_initialized = true;
             render_doc.insert("price", price);
 
             // Crear nuevos planes en Culqi para cada restaurante
@@ -133,7 +138,11 @@ pub async fn update_card_plan(
         } else if let Some(price_per_restaurant) = &update_dto.price_per_restaurant {
             // Usar el price inicial del documento actual
             let initial_price = current_card_plan.render.price;
-
+            let was_initialized = Rc::make_mut(&mut was_initialized_date_updated);
+            if *was_initialized == false {
+                update_doc.insert("priceActualizedDate", DateTime::now());
+                *was_initialized = true;
+            }
             // Crear nuevos planes en Culqi para cada restaurante usando el price inicial y el nuevo pricePerRestaurant
             for num_restaurants in 1..=100 {
                 let plan = CreateCulqiPlan::builder()
@@ -189,6 +198,11 @@ pub async fn update_card_plan(
     }
     if let Some(price_per_restaurant) = &update_dto.price_per_restaurant {
         update_doc.insert("pricePerRestaurant", price_per_restaurant);
+        let was_initialized = Rc::make_mut(&mut was_initialized_date_updated);
+        if *was_initialized == false {
+            update_doc.insert("priceActualizedDate", DateTime::now());
+            *was_initialized = true;
+        }
     }
 
     let document_to_update = doc! {

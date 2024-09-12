@@ -38,6 +38,8 @@ pub struct CardPlan {
     pub is_active: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
+    #[serde(rename = "priceActualizedDate")]
+    pub price_actualized_date: Option<DateTime>,
 }
 
 impl CardPlan {
@@ -47,6 +49,7 @@ impl CardPlan {
         restaurants_data: Vec<RestaurantsData>,
     ) -> CardPlan {
         CardPlan {
+            price_actualized_date: None,
             render,
             price_per_restaurant,
             restaurants_data,
