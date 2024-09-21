@@ -4,25 +4,34 @@ use bod_models::{
             reset_token::reset_token::ResetTokenSchema, user_config::user_config::UserConfigSchema,
         },
         location::country::country::CountrySchema,
-        mst::user::user::UserSchema,
+        mst::{restaurant::restaurant::RestaurantSchema, user::user::UserSchema},
     },
     shared::schema::Schema,
 };
-use common::{helpers::{env::env::ENV, ip::ip_functions::IpFunctions}, utils::ntex_private::{
-    collection::collection::{Collection, CollectionFunctions},
-    repository::public_repository::PublicRepository,
-}};
+use common::{
+    helpers::{env::env::ENV, ip::ip_functions::IpFunctions},
+    utils::ntex_private::{
+        collection::collection::{Collection, CollectionFunctions},
+        repository::public_repository::PublicRepository,
+    },
+};
 use modules::authentication::authentication_scope::authentication_route;
 use ntex::web::{self, scope};
 use ntex_cors::Cors;
+use lazy_static::lazy_static;
 pub mod modules;
 pub mod utils;
 
+use tzf_rs::DefaultFinder;
+
+lazy_static! {
+    static ref FINDER: DefaultFinder = DefaultFinder::new();
+}
+
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
+    let port = ENV.get_int("AUTH_PORT").expect("not port sended") as u16;
 
-    let port=ENV.get_int("AUTH_PORT").expect("not port sended") as u16;
-    
     //crear rpatron repository
     let public_repository = PublicRepository::connect()
         .await
@@ -34,12 +43,13 @@ async fn main() -> std::io::Result<()> {
     let reset_token: Box<dyn Schema + Sync + Send> = Box::new(ResetTokenSchema);
     let country: Box<dyn Schema + Sync + Send> = Box::new(CountrySchema);
     let user: Box<dyn Schema + Sync + Send> = Box::new(UserSchema);
-    let collections = vec![user_config, reset_token, country, user];
+    let restaurant: Box<dyn Schema + Sync + Send> = Box::new(RestaurantSchema);
+    let collections = vec![user_config, reset_token, country, user, restaurant];
     let collections = Collection::new(client, collections);
     collections.run_indexes().await;
-    let ipv4=IpFunctions::get_local_ipv4().expect("no ip").to_string();
+    let ipv4 = IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
-    println!("Server initialized on port {} and ip {}",port,ipv4);
+    println!("Server initialized on port {} and ip {}", port, ipv4);
     web::HttpServer::new(move || {
         web::App::new()
             .wrap(

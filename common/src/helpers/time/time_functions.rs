@@ -1,5 +1,5 @@
 use bson::DateTime as BsonDateTime;
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use std::str::FromStr;
 

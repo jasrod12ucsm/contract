@@ -2,7 +2,7 @@
 use bson::{oid::ObjectId, DateTime};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug,Clone)]
 pub struct RegionWithId {
     #[serde(rename = "_id")]
     pub id: ObjectId,
@@ -33,3 +33,4 @@ impl RegionWithId {
         }
     }
 }
+

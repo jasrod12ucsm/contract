@@ -23,6 +23,6 @@ use ntex::web::{self, Responder};
 
 
 #[web::post("pay")]
-pub async fn validateTarget() -> impl Responder {
+pub async fn validate_target() -> impl Responder {
     ""
 }

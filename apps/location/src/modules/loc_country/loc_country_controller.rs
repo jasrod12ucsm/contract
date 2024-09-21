@@ -102,14 +102,14 @@ pub async fn get_country_by_user_id(
     let user_id = ObjectId::parse_str(path.id())
         .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
     let user = user_repsoitory
-        .find_one(doc! {"_id":user_id}, None)
+        .find_one(doc! {"_id":user_id})
         .await
         .map_err(|_err| {
             CountryError::GetCountryError("internal data failure")
         })?
         .ok_or_else(|| CountryError::GetCountryError("not exist user"))?;
     let country = country_repository
-        .find_one(doc! {"code":user.country.code}, None)
+        .find_one(doc! {"code":user.country.code})
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?
         .ok_or_else(|| CountryError::GetCountryError("not exist country"))?;
@@ -130,7 +130,7 @@ pub async fn get_country_by_id(
     let country_id = ObjectId::parse_str(path.id())
         .map_err(|_| CountryError::GetCountryError("canot parse important data"))?;
     let country = country_repository
-        .find_one(doc! {"_id":country_id}, None)
+        .find_one(doc! {"_id":country_id})
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?
         .ok_or_else(|| CountryError::GetCountryError("not exist country"))?;
@@ -150,7 +150,7 @@ pub async fn get_country_by_code(
             CountryError::GetCountryError("internal error, comunicate with programmers")
         })?;
     let country = country_repository
-        .find_one(doc! {"code":path.id()}, None)
+        .find_one(doc! {"code":path.id()})
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?
         .ok_or_else(|| CountryError::GetCountryError("not exist country"))?;
@@ -206,7 +206,7 @@ pub async fn get_country_by_region_id(
         })?;
     //busca region por id
     let region = region_repository
-        .find_one(doc! {"code":region_id}, None)
+        .find_one(doc! {"code":region_id})
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?
         .ok_or_else(|| CountryError::GetCountryError("not exist region"))?;

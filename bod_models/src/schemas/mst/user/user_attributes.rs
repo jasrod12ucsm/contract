@@ -10,7 +10,6 @@ use super::models::{atention_hour::AtentionHour, identification::Identification}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserAttributes {
-    pub frecuency: Option<Vec<String>>,
     pub country: ShortCountry,
     pub region: ShortRegion,
     #[serde(rename = "userConfigId")]
@@ -56,7 +55,6 @@ impl UserAttributes {
             region,
             country,
             lvl: 0, //client lvl
-            frecuency: None,
             user_config,
             identification,
             phone,

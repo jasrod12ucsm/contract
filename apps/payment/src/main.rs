@@ -1,11 +1,4 @@
-use bod_models::{
-    schemas::mst::{
-        accounting_account::accounting_account::AccountingAccountSchema,
-        accounting_entry::accounting_entry::AccountingEntrySchema,
-        accounting_record::accounting_record::AccountingRecordSchema,
-    },
-    shared::schema::Schema,
-};
+use bod_models::shared::schema::Schema;
 use common::{
     helpers::{env::env::ENV, ip::ip_functions::IpFunctions},
     utils::ntex_private::{
@@ -30,13 +23,7 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
     //*creamos los indices y schemas necesarios al ejecutar la app se cargaran otra vez
     let client = public_repository.get_client().unwrap();
-    let accounting_account: Box<dyn Schema + Sync + Send> = Box::new(AccountingAccountSchema);
-    let accounting_entry: Box<dyn Schema + Sync + Send> = Box::new(AccountingEntrySchema);
-    let accounting_record: Box<dyn Schema + Sync + Send> = Box::new(AccountingRecordSchema);
 
-    let collections = vec![accounting_account, accounting_entry, accounting_record];
-    let collections = Collection::new(client, collections);
-    collections.run_indexes().await;
     let ipv4 = IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
     //imprime el puerto y la ip

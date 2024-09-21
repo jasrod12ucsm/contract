@@ -3,14 +3,13 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bod_models::shared::schema::BaseColleccionNames;
 use mongodb::{
-    action::{FindOneAndUpdate, InsertOne, Update},
+    action::{FindOne, FindOneAndUpdate, InsertOne, Update},
     bson::{doc, DateTime},
-    error::Error,
     options::{
         ClientOptions, Compressor, ReadPreference, ReadPreferenceOptions, ReturnDocument,
         SelectionCriteria, ServerApiVersion,
     },
-    Client, ClientSession, Collection,
+    Client, Collection,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -77,17 +76,15 @@ pub trait SetPublicRepository {
     ) -> Result<Self::RepositoryType, mongodb::error::Error>;
 }
 
-#[async_trait]
 pub trait AbstractRepository<T: Serialize + Send + Sync, U: Serialize + Send + Sync> {
     fn construct_new_collection<K>(&self) -> Collection<K>
     where
         K: Serialize + DeserializeOwned + Unpin + Send + Sync;
     fn insert_one(&self, item: T) -> InsertOne;
-    async fn find_one(
+    fn find_one(
         &self,
         filter: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error>;
+    ) -> FindOne<U>;
     fn find_one_and_update(
         &self,
         filter: mongodb::bson::Document,
@@ -121,11 +118,10 @@ where
         collection.insert_one(item)
     }
 
-    async fn find_one(
+    fn find_one(
         &self,
         mut filter: mongodb::bson::Document,
-        session: Option<&mut ClientSession>,
-    ) -> Result<Option<U>, Error> {
+    ) -> FindOne<U> {
         let has_is_deleted = filter.contains_key("isDeleted");
         let has_is_active = filter.contains_key("isActive");
         let has_no_deleted = filter.contains_key("noDeleted");
@@ -155,16 +151,7 @@ where
         }
         println!("Filter: {:?}", filter);
         let collection = self.get_collection_for_id();
-        if let Some(session) = session {
-            let doc = collection
-                .find_one(filter)
-                .selection_criteria(SelectionCriteria::ReadPreference(ReadPreference::Primary))
-                .session(session)
-                .await?;
-            return Ok(doc);
-        }
-        let document = collection.find_one(filter).await?;
-        Ok(document)
+        collection.find_one(filter).selection_criteria(SelectionCriteria::ReadPreference(ReadPreference::PrimaryPreferred { options: None }))
     }
 
     fn find_one_and_update(
@@ -298,7 +285,7 @@ where
         }
         println!("Filter: {:?}", filter);
         let collection: &Collection<U> = self.get_collection_for_id();
-        let document: mongodb::action::Find<U> = collection.find(filter);
+        let document: mongodb::action::Find<U> = collection.find(filter).allow_disk_use(true).max_await_time(Duration::from_secs(5));
         document
     }
 

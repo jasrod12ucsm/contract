@@ -15,8 +15,10 @@ lazy_static = "1.4.0"
 tokio ="1.38.1"
 async-trait = "0.1"
 bson = "2.11.0"
+futures = "0.3.17"
 jsonwebtoken = "9.3.0"
 reqwest = { version = "0.12.5", features = ["blocking", "json"] }
+tzf-rs = "0.4.9"
 common={path = "../../common"}
 bod_models={path = "../../bod_models"}
 ntex-cors = "2.0.0"

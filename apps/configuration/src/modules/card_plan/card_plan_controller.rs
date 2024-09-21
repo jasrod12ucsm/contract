@@ -71,7 +71,7 @@ pub async fn update_card_plan(
 
     // Obtener el documento actual de card_plan
     let current_card_plan = card_plan_repository
-        .find_one(doc! {"_id": card_plan_id}, None)
+        .find_one(doc! {"_id": card_plan_id})
         .await
         .map_err(|_| CardPlanError::UpdateCardPlanError("can't find card plan"))?
         .ok_or_else(|| CardPlanError::UpdateCardPlanError("Card plan not found"))?;

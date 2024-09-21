@@ -226,7 +226,7 @@ async fn get_card_plan_token(
     card_plan_repositoy: &Arc<card_plan_repositoy::CardPlanRepository>,
 ) -> Option<(String, i32)> {
     card_plan_repositoy
-        .find_one(doc! {"_id":&company.card_plan,"noDeleted":true}, None)
+        .find_one(doc! {"_id":&company.card_plan,"noDeleted":true})
         .await
         .ok()
         .flatten()

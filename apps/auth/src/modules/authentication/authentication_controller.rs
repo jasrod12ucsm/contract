@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{
     modules::authentication::{
         data::{
@@ -7,21 +5,26 @@ use crate::{
             register_user_client_dto::RegisterUserClientDto,
         },
         models::{
-            email_sended::EmailSended, get_token_result::GetTokenResult, login_result::LoginResult,
-            renew_result::RenewResult, user_id::UserId,
+            email_sended::EmailSended,
+            get_token_result::GetTokenResult,
+            login_result::LoginResult,
+            renew_result::RenewResult,
+            user_id::UserId,
         },
     },
     utils::{
         email_functions::EmailFunctions,
+        infraestructure::restaurant_callback::RestaurantCallback,
         jwt::generate::generate_jwt,
         repositories::{
             app_variables_repository::AppVariablesRepository,
             country_repository::CountryRepository,
             email_template_repository::EmailTemplateRepository,
             region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
+            restaurant_repository::RestaurantRepository,
             user_config_repository::UserConfigRepository, user_repository::UserRepository,
         },
-    },
+    }, FINDER,
 };
 use bod_models::{
     schemas::{
@@ -37,12 +40,19 @@ use bod_models::{
                 user_config_errors::UserConfigError,
             },
         },
-        mst::user::{
-            models::identification::Identification, user_attributes::UserAttributes,
-            user_errors::UserError,
+        location::{
+            country::models::short_country::ShortCountry, region::models::short_region::ShortRegion,
+        },
+        mst::{
+            restaurant::restaurant_attributes::RestaurantAttributesBuilder,
+            user::{
+                models::{atention_hour::AtentionHourBuilder, identification::Identification},
+                user_attributes::UserAttributes,
+                user_errors::UserError,
+            },
         },
     },
-    shared::jwt::claims::DefaultClaims,
+    shared::{bson::to_bson::ToBson, jwt::claims::DefaultClaims},
 };
 use bson::{oid::ObjectId, DateTime};
 use common::{
@@ -56,6 +66,7 @@ use common::{
         repository::public_repository::{AbstractRepository, PublicRepository},
     },
 };
+
 use jsonwebtoken::{DecodingKey, Validation};
 use mongodb::bson::doc;
 use ntex::{
@@ -65,6 +76,7 @@ use ntex::{
         types::{Json, Path, State},
     },
 };
+use std::str::FromStr;
 
 #[web::post("/singup/client")]
 pub async fn singup_client(
@@ -83,8 +95,9 @@ pub async fn singup_client(
         country_code,
         region_code,
         birthdate,
-        latitude_store,
-        longitude_store,
+        longitude,
+        latitude,
+        efective_area,
     } = register_dto.into_inner();
     //iniciamos repositorios
     let user_config_repository: UserConfigRepository = repo
@@ -118,7 +131,10 @@ pub async fn singup_client(
         .get_repository::<AppVariablesRepository>()
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
-
+    let restaurant_repository: RestaurantRepository = repo
+        .get_repository::<RestaurantRepository>()
+        .await
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
     //creamos session para la transaccion
     let mut session = repo
         .get_client()
@@ -134,7 +150,7 @@ pub async fn singup_client(
 
     //si encuentra el email verifica si esta authenticado, si lo esta regresa error, si no continuea con el codigo
     let country = country_repository
-        .find_one(doc! {"code":country_code.clone()}, Some(&mut session))
+        .find_one(doc! {"code":country_code.clone()}).session(&mut session)
         .await
         .map_err(|_| {
             let _ = session.abort_transaction();
@@ -145,7 +161,7 @@ pub async fn singup_client(
     let find_region_document =
         doc! {"code":region_code.clone(), "countryId":country_code,"noDeleted":true};
     let region = region_repository
-        .find_one(find_region_document, Some(&mut session))
+        .find_one(find_region_document).session(&mut session)
         .await
         .map_err(|_| {
             let _ = session.abort_transaction();
@@ -153,7 +169,7 @@ pub async fn singup_client(
         })?
         .ok_or_else(|| Either::Right(UserError::CreateUserError("incorrect region")))?;
     let user_config = user_config_repository
-        .find_one(doc! {"email":email.clone()}, None)
+        .find_one(doc! {"email":email.clone()}).session(&mut session)
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("error finding email")))?;
     if user_config.is_some() {
@@ -217,9 +233,9 @@ pub async fn singup_client(
             identification_type,
         },
         phone,
-        address,
-        country.into(),
-        region.into(),
+        address.clone(),
+        country.clone().into(),
+        region.clone().into(),
         birthdate,
         "C".to_string(),
     );
@@ -278,6 +294,47 @@ pub async fn singup_client(
                 "error updating token table",
             ))
         })?;
+    //creamos una insersion de restaurant
+    let name = format!("{}-{}-res", longitude.clone(), latitude.clone());
+    let timezone = FINDER.get_tz_name(longitude, latitude);
+    let restaurant_insertion_data = RestaurantAttributesBuilder::default()
+        .address(address)
+        .close_hour(AtentionHourBuilder::default().build().unwrap())
+        .open_hour(AtentionHourBuilder::default().build().unwrap())
+        .country::<ShortCountry>(country.into())
+        .region::<ShortRegion>(region.into())
+        .name(name.clone())
+        .latitude(latitude)
+        .longitude(longitude)
+        .efective_area(efective_area)
+        .num_mesas(0)
+        .time_zone(timezone)
+        .is_active(true)
+        .is_deleted(false)
+        .build()
+        .map_err(|_| {
+            Either::Left(UserConfigError::CreateUserError(
+                "error updating token table",
+            ))
+        })?
+        .to_bson()
+        .map_err(|_| {
+            Either::Left::<UserConfigError, UserError>(UserConfigError::CreateUserError(
+                "error updating token table",
+            ))
+        })?;
+
+    let _ = restaurant_repository
+        .find_one_and_update(doc! {"name":name}, restaurant_insertion_data)
+        .session(&mut session)
+        .upsert(true)
+        .await
+        .map_err(|_| {
+            let _ = session.abort_transaction();
+            Either::Left::<UserConfigError, UserError>(UserConfigError::CreateUserError(
+                "error on restaurant insertion",
+            ))
+        });
     session
         .commit_transaction()
         .await
@@ -290,7 +347,7 @@ pub async fn singup_client(
 
     //usa el email template repository para buscar
     let email_template = email_template_repository
-        .find_one(doc! {"templateName":"register","noActive":true}, None)
+        .find_one(doc! {"templateName":"register","noActive":true})
         .await
         .map_err(|_| {
             Either::Left(UserConfigError::CreateUserError(
@@ -305,18 +362,20 @@ pub async fn singup_client(
     let app_variables = match app_variables_repository
         .find_one(
             doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true},
-            Some(&mut session),
-        )
+            
+        ).session(&mut session)
         .await
     {
         Ok(Some(variables)) => variables,
         Ok(None) => {
+            session.abort_transaction();
             return Err(Either::Left(UserConfigError::CreateUserError(
                 "app variables not found",
             )))
         }
         Err(err) => {
             println!("{:?}", err);
+            session.abort_transaction();
             return Err(Either::Left(UserConfigError::CreateUserError(
                 "error finding app variables",
             )));
@@ -379,12 +438,12 @@ pub async fn resend_email(
         .get_repository::<UserRepository>()
         .await
         .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?
-        .find_one(doc! {"_id":ObjectId::parse_str(id_path).unwrap()}, None)
+        .find_one(doc! {"_id":ObjectId::parse_str(id_path).unwrap()})
         .await
         .map_err(|_| ResetTokenError::GetTokenError("cannot get user"))?
         .ok_or_else(|| ResetTokenError::GetTokenError("invalid user"))?;
     let current_user_config = user_config_repository
-        .find_one(doc! {"_id":current_user.user_config}, None)
+        .find_one(doc! {"_id":current_user.user_config})
         .await
         .map_err(|_| ResetTokenError::GetTokenError("cannot get that user"))?
         .ok_or_else(|| ResetTokenError::GetTokenError("user configuration not exist"))?;
@@ -413,7 +472,7 @@ pub async fn resend_email(
     //ahora genera el html
     println!("paso");
     let email_template = email_template_repository
-        .find_one(doc! {"templateName":"register","noActive":true}, None)
+        .find_one(doc! {"templateName":"register","noActive":true})
         .await
         .map_err(|_| ResetTokenError::GetTokenError("cannot render template"))?;
     if email_template.is_none() {
@@ -478,7 +537,7 @@ pub async fn authenticate(
         .map_err(|_| UserConfigError::LoginUserError("Internal code error"))?;
     //ahora preguntamos por el token
     let token_register = reset_token_repository
-        .find_one(doc! {"userId":id,"noActive":true}, None)
+        .find_one(doc! {"userId":id,"noActive":true})
         .await
         .map_err(|_| UserConfigError::LoginUserError("User not finded"))?;
     if token_register.is_none() {
@@ -549,10 +608,13 @@ pub async fn login_client(
 
     // Buscar registro por email
     let user_config = user_config_repository
-        .find_one(doc! {"email":email.clone()}, None)
+        .find_one(doc! {"email":email.clone()})
         .await
         .map_err(|_err| UserConfigError::LoginUserError("Error al buscar UserConfig"))?;
-
+    let restaurant_repository: RestaurantRepository = repo
+        .get_repository::<RestaurantRepository>()
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Error al obtener restaurant repo"))?;
     // Si no hay nada con ese email, mandar error de logeo
     if user_config.is_none() {
         return Err(UserConfigError::LoginUserError(
@@ -578,12 +640,14 @@ pub async fn login_client(
     }
 
     // Crear token si es necesario (búsqueda en tabla)
+    println!("{:?}", user_config.id);
     let token_register = reset_token_repository
-        .find_one(doc! {"userConfigId":user_config.id}, None)
+        .find_one(doc! {"userConfigId":user_config.id,"noActive":true})
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al buscar ResetToken"))?;
 
     let secret = ENV.get_string("SECRET_KEY").unwrap().to_string();
+    println!("{:?}", token_register);
     if let Some(token_register) = token_register {
         let token = token_register.token;
         match jsonwebtoken::decode::<DefaultClaims>(
@@ -593,15 +657,19 @@ pub async fn login_client(
         ) {
             Ok(_token_desencrypted) => {
                 let user = user_repository
-                    .find_one(doc! {"userConfig._id":user_config.id}, None)
+                    .find_one(doc! {"userConfig._id":user_config.id})
                     .await
                     .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
                     .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
                 let short_user_config: ShortUserConfig = user_config.into();
-                return Ok(JsonAdvanced(LoginResult::from_user_and_user_config(
-                    user,
-                    short_user_config,
-                )));
+                let mut login_result = LoginResult::from(&user, short_user_config);
+
+                {
+                    // Crear el callback y llamarlo
+                    let callback = RestaurantCallback::create_callback();
+                    callback(&user, &restaurant_repository, &mut login_result).await?;
+                }
+                return Ok(JsonAdvanced(login_result));
             }
             Err(err) => {
                 match err.kind() {
@@ -609,7 +677,7 @@ pub async fn login_client(
                     | jsonwebtoken::errors::ErrorKind::InvalidSignature
                     | jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
                         let user = user_repository
-                            .find_one(doc! {"userConfig._id":user_config.id}, None)
+                            .find_one(doc! {"userConfig._id":user_config.id})
                             .await
                             .map_err(|_| {
                                 UserConfigError::LoginUserError("Error al buscar el usuario")
@@ -633,17 +701,21 @@ pub async fn login_client(
                             })?;
 
                         let user = user_repository
-                            .find_one(doc! {"userConfig._id":user_config.id}, None)
+                            .find_one(doc! {"userConfig._id":user_config.id})
                             .await
                             .map_err(|_| {
                                 UserConfigError::LoginUserError("Error al buscar el usuario")
                             })?
                             .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
                         let short_user_config: ShortUserConfig = user_config.into();
-                        return Ok(JsonAdvanced(LoginResult::from_user_and_user_config(
-                            user,
-                            short_user_config,
-                        )));
+                        let mut login_result = LoginResult::from(&user, short_user_config);
+
+                        {
+                            // Crear el callback y llamarlo
+                            let callback = RestaurantCallback::create_callback();
+                            callback(&user, &restaurant_repository, &mut login_result).await?;
+                        }
+                        return Ok(JsonAdvanced(login_result));
                     }
                     _ => {}
                 }
@@ -658,7 +730,6 @@ pub async fn login_client(
         ));
     }
 }
-
 //funcion para renovar token
 #[web::get("renew/{id}")]
 pub async fn renew(
@@ -677,7 +748,7 @@ pub async fn renew(
         .map_err(|_| ResetTokenError::UpdateTokenError("internal server error"))?;
     //busca el user
     let user = user_repository
-        .find_one(doc! {"_id":id}, None)
+        .find_one(doc! {"_id":id})
         .await
         .map_err(|_| ResetTokenError::UpdateTokenError("cannot find user"))?
         .ok_or(ResetTokenError::UpdateTokenError("cannot find user"))?;
@@ -713,7 +784,7 @@ pub async fn get_token(
         .await
         .map_err(|_| ResetTokenError::UpdateTokenError("cannot update token"))?;
     let token_register = reset_token_repository
-        .find_one(doc! {"userId":id}, None)
+        .find_one(doc! {"userId":id})
         .await
         .map_err(|_| ResetTokenError::UpdateTokenError("no se puede obtener token"))?;
     if token_register.is_none() {

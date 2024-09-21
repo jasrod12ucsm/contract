@@ -2,7 +2,7 @@ use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use crate::schemas::{
-    location::{country::models::short_country::ShortCountry, region::region::Region},
+    location::{country::models::short_country::ShortCountry, region::{models::short_region::ShortRegion, region::Region}},
     mst::user::models::short_user::ShortUser,
 };
 
@@ -10,40 +10,36 @@ use super::company::{Sensible, SocialNetworks};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompanyAttributes {
-    #[serde(rename = "_id")]
-    pub id: ObjectId,
-    pub sensible: Sensible,
-    pub logo: String,
+    sensible:Sensible,
+    logo: String,
     #[serde(rename = "largeLogo")]
-    pub large_logo: String,
+    large_logo: String,
     #[serde(rename = "smallLogo")]
-    pub small_logo: String,
-    #[serde(rename = "quantityRestaurant")]
-    pub quantity_restaurant: i32,
-    pub emails: Vec<String>,
-    pub name: String,
+    small_logo: String,
+    emails: Vec<String>,
+    name: String,
     #[serde(rename = "dispĺayName")]
-    pub display_name: String,
-    pub user: ShortUser,
-    pub country: ShortCountry,
-    pub region: Region,
-    #[serde(rename = "cardPlan")]
+    display_name: String,
+    country: ShortCountry,
+    region: ShortRegion,
+    website: Option<String>,
+    #[serde(rename="employeeCount")]
+    employee_count: String,
+    vision: String,
+    mission: String,
+    #[serde(rename="quantityRestaurant")]
+    quantity_restaurant: i32,
+    #[serde(rename="cardPlan")]
     card_plan: ObjectId,
-    pub website: Option<String>,
-    #[serde(rename = "employeeCount")]
-    pub employee_count: String,
-    pub vision: String,
-    pub mission: String,
-    pub categories: Option<ObjectId>,
-    pub social: SocialNetworks,
-    #[serde(rename = "isDeleted")]
-    pub is_deleted: bool,
-    #[serde(rename = "isActive")]
-    pub is_active: bool,
+    categories: Option<Vec<ObjectId>>,
+    social: SocialNetworks,
+    #[serde(rename="isDeleted")]
+    is_deleted: bool,
+    #[serde(rename="isActive")]
+    is_active: bool,
 }
 
 pub struct CompanyAttributesBuilder {
-    id: Option<ObjectId>,
     sensible: Option<Sensible>,
     logo: Option<String>,
     large_logo: Option<String>,
@@ -53,13 +49,13 @@ pub struct CompanyAttributesBuilder {
     display_name: Option<String>,
     user: Option<ShortUser>,
     country: Option<ShortCountry>,
-    region: Option<Region>,
+    region: Option<ShortRegion>,
     website: Option<Option<String>>,
     quantity_restaurant: Option<i32>,
     employee_count: Option<String>,
     vision: Option<String>,
     mission: Option<String>,
-    categories: Option<Option<ObjectId>>,
+    categories: Option<Option<Vec<ObjectId>>>,
     card_plan: Option<ObjectId>,
     social: Option<SocialNetworks>,
     is_deleted: Option<bool>,
@@ -71,7 +67,6 @@ impl CompanyAttributesBuilder {
         Self {
             card_plan: None,
             quantity_restaurant: None,
-            id: None,
             sensible: None,
             logo: None,
             large_logo: None,
@@ -93,10 +88,6 @@ impl CompanyAttributesBuilder {
         }
     }
 
-    pub fn with_id(mut self, id: ObjectId) -> Self {
-        self.id = Some(id);
-        self
-    }
 
     pub fn with_sensible(mut self, sensible: Sensible) -> Self {
         self.sensible = Some(sensible);
@@ -143,7 +134,7 @@ impl CompanyAttributesBuilder {
         self
     }
 
-    pub fn with_region(mut self, region: Region) -> Self {
+    pub fn with_region(mut self, region: ShortRegion) -> Self {
         self.region = Some(region);
         self
     }
@@ -168,7 +159,7 @@ impl CompanyAttributesBuilder {
         self
     }
 
-    pub fn with_categories(mut self, categories: Option<ObjectId>) -> Self {
+    pub fn with_categories(mut self, categories: Option<Vec<ObjectId>>) -> Self {
         self.categories = Some(categories);
         self
     }
@@ -198,7 +189,6 @@ impl CompanyAttributesBuilder {
 
     pub fn build(self) -> Result<CompanyAttributes, &'static str> {
         Ok(CompanyAttributes {
-            id: self.id.ok_or("id is required")?,
             sensible: self.sensible.ok_or("sensible is required")?,
             logo: self.logo.ok_or("logo is required")?,
             large_logo: self.large_logo.ok_or("large_logo is required")?,
@@ -206,7 +196,6 @@ impl CompanyAttributesBuilder {
             emails: self.emails.ok_or("emails are required")?,
             name: self.name.ok_or("name is required")?,
             display_name: self.display_name.ok_or("display_name is required")?,
-            user: self.user.ok_or("user is required")?,
             country: self.country.ok_or("country is required")?,
             region: self.region.ok_or("region is required")?,
             website: self.website.unwrap_or(None),

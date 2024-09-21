@@ -1,7 +1,7 @@
 
 [workspace]
 
-members= [ "apps/auth", "apps/configuration", "apps/cron-process", "apps/location", "apps/management", "apps/master", "apps/payment", "bod_models","common"]
+members= [ "apps/auth", "apps/configuration", "apps/cron-process", "apps/location", "apps/management", "apps/payment", "bod_models","common"]
 
 
 resolver = "2"

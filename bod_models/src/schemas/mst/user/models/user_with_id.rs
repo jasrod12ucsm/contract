@@ -14,7 +14,6 @@ use super::{atention_hour::AtentionHour, identification::Identification};
 pub struct UserWithId {
     #[serde(rename="_id")]
     pub id:ObjectId,
-    pub frecuency: Option<Vec<String>>,
     #[serde(rename = "userConfigId")]
     pub user_config: ObjectId,
     pub country:ShortCountry,
@@ -62,7 +61,6 @@ impl UserWithId{
             country:user.country,
             lvl:user.lvl,
             id,
-            frecuency:user.frecuency,
             user_config:user.user_config,
             identification:user.identification,
             phone:user.phone,

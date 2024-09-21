@@ -9,7 +9,6 @@ use super::models::{atention_hour::AtentionHour, identification::Identification}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    pub frecuency: Option<Vec<String>>,
     pub country:ShortCountry,
     pub region:ShortRegion,
     #[serde(rename = "userConfigId")]
@@ -24,7 +23,7 @@ pub struct User {
     pub address: String,
     pub lvl:i32,
     #[serde(rename = "typeProvider")]
-    pub type_provider: String,
+    pub type_provider: String,//COMPANY, ATM, chef waiter
     #[serde(rename = "employedBy")]
     pub employed_by: Option<ObjectId>,
     #[serde(rename = "closeHour")]
@@ -58,7 +57,6 @@ impl User {
             region,
             country,
             lvl:0,//client lvl
-            frecuency: None,
             user_config,
             identification,
             phone,

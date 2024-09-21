@@ -20,7 +20,9 @@ pub struct RegisterUserClientDto {
     pub country_code:String,
     #[serde(rename="regionCode")]
     pub region_code:String,
+    pub latitude:f64,
+    pub longitude:f64,
     pub birthdate:String,
-    pub latitude_store:String,
-    pub longitude_store:String
+    #[serde(rename="efectiveArea")]
+    pub efective_area:i32
 }

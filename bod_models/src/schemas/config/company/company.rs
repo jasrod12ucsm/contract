@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     schemas::{
         config::reset_token::reset_token::ResetToken,
-        location::{country::models::short_country::ShortCountry, region::region::Region},
-        mst::user::models::short_user::ShortUser,
+        location::{country::models::short_country::ShortCountry, region::{models::short_region::ShortRegion, region::Region}},
     },
     shared::{
         index_functions::IndexFunctions,
@@ -27,9 +26,8 @@ pub struct Company {
     name: String,
     #[serde(rename = "dispĺayName")]
     display_name: String,
-    user: ShortUser,
     country: ShortCountry,
-    region: Region,
+    region: ShortRegion,
     website: Option<String>,
     #[serde(rename="employeeCount")]
     employee_count: String,
@@ -39,7 +37,7 @@ pub struct Company {
     quantity_restaurant: i32,
     #[serde(rename="cardPlan")]
     card_plan: ObjectId,
-    categories: Option<ObjectId>,
+    categories: Option<Vec<ObjectId>>,
     social: SocialNetworks,
     #[serde(rename="createdAt")]
     created_at: DateTime,
