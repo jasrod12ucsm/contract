@@ -5,11 +5,8 @@ use crate::{
             register_user_client_dto::RegisterUserClientDto,
         },
         models::{
-            email_sended::EmailSended,
-            get_token_result::GetTokenResult,
-            login_result::LoginResult,
-            renew_result::RenewResult,
-            user_id::UserId,
+            email_sended::EmailSended, get_token_result::GetTokenResult, login_result::LoginResult,
+            renew_result::RenewResult, user_id::UserId,
         },
     },
     utils::{
@@ -24,7 +21,8 @@ use crate::{
             restaurant_repository::RestaurantRepository,
             user_config_repository::UserConfigRepository, user_repository::UserRepository,
         },
-    }, FINDER,
+    },
+    FINDER,
 };
 use bod_models::{
     schemas::{
@@ -68,7 +66,7 @@ use common::{
 };
 
 use jsonwebtoken::{DecodingKey, Validation};
-use mongodb::bson::doc;
+use mongodb::{bson::doc, options::SelectionCriteria};
 use ntex::{
     util::Either,
     web::{
@@ -150,9 +148,14 @@ pub async fn singup_client(
 
     //si encuentra el email verifica si esta authenticado, si lo esta regresa error, si no continuea con el codigo
     let country = country_repository
-        .find_one(doc! {"code":country_code.clone()}).session(&mut session)
+        .find_one(doc! {"code":country_code.clone()})
+        .session(&mut session)
+        .selection_criteria(SelectionCriteria::ReadPreference(
+            mongodb::options::ReadPreference::Primary,
+        ))
         .await
-        .map_err(|_| {
+        .map_err(|err| {
+            println!("{:?}", err);
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("country not correct"))
         })?
@@ -161,7 +164,11 @@ pub async fn singup_client(
     let find_region_document =
         doc! {"code":region_code.clone(), "countryId":country_code,"noDeleted":true};
     let region = region_repository
-        .find_one(find_region_document).session(&mut session)
+        .find_one(find_region_document)
+        .session(&mut session)
+        .selection_criteria(SelectionCriteria::ReadPreference(
+            mongodb::options::ReadPreference::Primary,
+        ))
         .await
         .map_err(|_| {
             let _ = session.abort_transaction();
@@ -169,7 +176,11 @@ pub async fn singup_client(
         })?
         .ok_or_else(|| Either::Right(UserError::CreateUserError("incorrect region")))?;
     let user_config = user_config_repository
-        .find_one(doc! {"email":email.clone()}).session(&mut session)
+        .find_one(doc! {"email":email.clone()})
+         .selection_criteria(SelectionCriteria::ReadPreference(
+            mongodb::options::ReadPreference::Primary,
+        ))
+        .session(&mut session)
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("error finding email")))?;
     if user_config.is_some() {
@@ -360,10 +371,8 @@ pub async fn singup_client(
         )));
     }
     let app_variables = match app_variables_repository
-        .find_one(
-            doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true},
-            
-        ).session(&mut session)
+        .find_one(doc! {"_id":{"$exists":true},"noDeleted":true,"noActive":true})
+        .session(&mut session)
         .await
     {
         Ok(Some(variables)) => variables,
@@ -371,7 +380,7 @@ pub async fn singup_client(
             session.abort_transaction();
             return Err(Either::Left(UserConfigError::CreateUserError(
                 "app variables not found",
-            )))
+            )));
         }
         Err(err) => {
             println!("{:?}", err);
