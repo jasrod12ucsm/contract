@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-#[web::get("get")]
+#[web::post("get")]
 pub async fn get_all_restaurants(
     req: HttpRequest,
     repo: State<PublicRepository>,
