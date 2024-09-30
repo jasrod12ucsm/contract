@@ -16,7 +16,7 @@ pub mod utils;
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
 
-     let port=ENV.get_int("LOCATION_PORT").expect("not port sended") as u16;
+     let port=ENV.get_int("MASTER_PORT").expect("not port sended") as u16;
 
     //crear rpatron repository
     let public_repository = PublicRepository::connect()
