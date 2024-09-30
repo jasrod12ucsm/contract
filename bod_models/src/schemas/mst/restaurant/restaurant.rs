@@ -7,11 +7,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     schemas::{
         location::{
-            country::models::short_country::{ShortCountry, ShortCountryBuilder}, region::models::short_region::{ShortRegion, ShortRegionBuilder},
+            country::models::short_country::{ShortCountry, ShortCountryBuilder},
+            region::models::short_region::{ShortRegion, ShortRegionBuilder},
         },
         mst::user::models::atention_hour::{AtentionHour, AtentionHourBuilder},
     },
     shared::{
+        geo_point::GeoPoint,
         index_functions::IndexFunctions,
         schema::{BaseColleccionNames, Schema},
     },
@@ -20,8 +22,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct Restaurant {
-    pub longitude: f64,
-    pub latitude: f64,
+    pub location: GeoPoint,
     #[serde(rename = "openHour")]
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
@@ -31,6 +32,8 @@ pub struct Restaurant {
     pub country: ShortCountry,
     pub region: ShortRegion,
     pub name: String,
+    #[serde(rename = "contentTypeIds")]
+    pub content_type_ids: Vec<ObjectId>,
     pub address: String,
     #[serde(rename = "numMesas")]
     pub num_mesas: i32,
@@ -45,17 +48,13 @@ pub struct Restaurant {
     #[serde(rename = "timeZone")]
     pub time_zone: String,
     #[serde(rename = "companyId")]
-    pub company_id:ObjectId
+    pub company_id: ObjectId,
 }
-
 
 impl RestaurantBuilder {
     fn validate(&self) -> Result<(), String> {
-        if self.longitude.is_none() {
+        if self.location.is_none() {
             return Err("Longitude is required".into());
-        }
-        if self.latitude.is_none() {
-            return Err("Latitude is required".into());
         }
         if self.open_hour.is_none() {
             return Err("Open hour is required".into());
@@ -84,19 +83,19 @@ impl RestaurantBuilder {
         if self.time_zone.is_none() {
             return Err("Time zone is required".into());
         }
-        if self.company_id.is_none(){
+        if self.company_id.is_none() {
             return Err("Company id is required".into());
+        }
+        if self.content_type_ids.is_none() {
+            return Err("Content type ids is required".into());
         }
         Ok(())
     }
 
     pub fn build_partial_update(&self) -> bson::Document {
         let mut doc = doc! {};
-        if let Some(longitude) = &self.longitude {
-            doc.insert("longitude", longitude);
-        }
-        if let Some(latitude) = &self.latitude {
-            doc.insert("latitude", latitude);
+        if let Some(location) = &self.location {
+            doc.insert("location", location);
         }
         if let Some(open_hour) = &self.open_hour {
             let open_hour = AtentionHourBuilder::default()
@@ -125,7 +124,7 @@ impl RestaurantBuilder {
         if let Some(efective_area) = &self.efective_area {
             doc.insert("efectiveArea", efective_area);
         }
-          if let Some(country) = &self.country {
+        if let Some(country) = &self.country {
             let country = ShortCountryBuilder::default()
                 .code(country.code.clone())
                 .currency(country.currency.clone())
@@ -171,6 +170,9 @@ impl RestaurantBuilder {
         if let Some(company_id) = &self.company_id {
             doc.insert("companyId", company_id);
         }
+        if let Some(content_type_ids) = &self.content_type_ids {
+            doc.insert("contentTypeIds", content_type_ids);
+        }
         doc
     }
 }
@@ -188,13 +190,14 @@ impl Restaurant {
         address: String,
         num_mesas: i32,
         time_zone: String,
-        company_id:ObjectId
+        company_id: ObjectId,
+        content_type_ids: Vec<ObjectId>,
     ) -> Restaurant {
         Restaurant {
+            content_type_ids,
             company_id,
             time_zone,
-            longitude,
-            latitude,
+            location: GeoPoint::new(longitude, latitude),
             open_hour,
             close_hour,
             efective_area,
@@ -261,6 +264,15 @@ impl Schema for RestaurantSchema {
                     .build(),
             )
             .build();
+        let geo_index = IndexModel::builder()
+            .keys(doc! {"location": "2dsphere"})
+            .options(
+                IndexOptions::builder()
+                    .name("location_geo_index".to_string())
+                    .build(),
+            )
+            .build();
+        indexes.push(geo_index);
         indexes.push(country_region_index);
 
         let _ = IndexFunctions::delete_existing_indexes(&collection, &mut indexes).await;

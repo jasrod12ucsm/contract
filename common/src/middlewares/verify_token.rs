@@ -1,5 +1,6 @@
 
-use bod_models::{schemas::mst::user::models::user_with_id::UserWithId, shared::jwt::claims::DefaultClaims};
+use bod_models::shared::jwt::claims::DefaultClaims;
+use bson::oid::ObjectId;
 use jsonwebtoken::{DecodingKey, Validation};
 use ntex::{
     http::{header, Response},
@@ -64,7 +65,7 @@ where
         };
         let uid=decoded_token.claims.user();
 
-        req.extensions_mut().insert::<UserWithId>(uid.to_owned());
+        req.extensions_mut().insert::<ObjectId>(uid.to_owned());
         let res = ctx.call(&self.service, req).await?;
         Ok(res)
     }

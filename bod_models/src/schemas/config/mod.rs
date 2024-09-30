@@ -3,3 +3,4 @@ pub mod reset_token;
 pub mod company;
 pub mod email_template;
 pub mod card_plan;
+pub mod content_type;

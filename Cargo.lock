@@ -1767,8 +1767,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "management"
+name = "master"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bod_models",
+ "bson",
+ "common",
+ "futures",
+ "jsonwebtoken",
+ "lazy_static",
+ "mongodb",
+ "ntex",
+ "ntex-cors",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "validator",
+]
 
 [[package]]
 name = "match_cfg"

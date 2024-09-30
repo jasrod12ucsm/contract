@@ -1,14 +1,21 @@
-use bson::doc;
+use bson::{doc, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::{location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion}, mst::user::models::atention_hour::AtentionHour}, shared::bson::to_bson::ToBson};
+use crate::{
+    schemas::{
+        location::{
+            country::models::short_country::ShortCountry, region::models::short_region::ShortRegion,
+        },
+        mst::user::models::atention_hour::AtentionHour,
+    },
+    shared::{bson::to_bson::ToBson, geo_point::GeoPoint},
+};
 use derive_builder::Builder;
 
-#[derive(Debug, Clone, Serialize, Deserialize,Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct RestaurantAttributes {
-    pub longitude: f64,
-    pub latitude: f64,
+    pub location:GeoPoint,
     #[serde(rename = "openHour")]
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
@@ -23,20 +30,17 @@ pub struct RestaurantAttributes {
     pub num_mesas: i32,
     #[serde(rename = "timeZone")]
     pub time_zone: String,
+    #[serde(rename = "contentTypeIds")]
+    pub content_type_ids: Vec<ObjectId>,
     #[serde(rename = "isActive")]
-    pub is_active:bool,
-    #[serde(rename="isDeleted")]
-    pub is_deleted:bool
+    pub is_active: bool,
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
 }
 
-
-
-impl RestaurantAttributesBuilder{
-      fn validate(&self) -> Result<(), String> {
-        if self.longitude.is_none() {
-            return Err("Longitude is required".into());
-        }
-        if self.latitude.is_none() {
+impl RestaurantAttributesBuilder {
+    fn validate(&self) -> Result<(), String> {
+        if self.location.is_none() {
             return Err("Latitude is required".into());
         }
         if self.open_hour.is_none() {
@@ -66,26 +70,28 @@ impl RestaurantAttributesBuilder{
         if self.time_zone.is_none() {
             return Err("Time zone is required".into());
         }
-        if self.is_active.is_none(){
-            return  Err("no is active".into());
+        if self.is_active.is_none() {
+            return Err("no is active".into());
         }
-        if self.is_deleted.is_none(){
-            return  Err("no is active".into());
+        if self.is_deleted.is_none() {
+            return Err("no is active".into());
+        }
+        if self.content_type_ids.is_none() {
+            return Err("no content type ids".into());
         }
         Ok(())
     }
 }
 
-impl ToBson for RestaurantAttributes{
-    fn to_bson(&self)-> Result<bson::Document,bson::ser::Error> {
-        let doc =bson::to_bson(self);
-        if (&doc).is_err(){
+impl ToBson for RestaurantAttributes {
+    fn to_bson(&self) -> Result<bson::Document, bson::ser::Error> {
+        let doc = bson::to_bson(self);
+        if (&doc).is_err() {
             return Err(doc.err().unwrap().to_owned());
         }
-        let document=doc! {
+        let document = doc! {
             "$set":doc.unwrap()
         };
         Ok(document)
-
     }
 }

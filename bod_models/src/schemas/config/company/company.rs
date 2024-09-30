@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     schemas::{
         config::reset_token::reset_token::ResetToken,
-        location::{country::models::short_country::ShortCountry, region::{models::short_region::ShortRegion, region::Region}},
+        location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion},
     },
     shared::{
         index_functions::IndexFunctions,
@@ -117,7 +117,7 @@ impl Schema for CompanySchema {
             .collection::<ResetToken>(self.get_collection_name());
         let mut indexes: Vec<IndexModel> = vec![];
         let user_id_index = IndexModel::builder()
-            .keys(doc! {"userId":1})
+            .keys(doc! {"_id":1,"isDeleted":1,"isActive":1})
             .options(
                 IndexOptions::builder()
                     .unique(true)
@@ -125,18 +125,7 @@ impl Schema for CompanySchema {
                     .build(),
             )
             .build();
-        //crea uno para user_config_id
-        let user_config_id_index = IndexModel::builder()
-            .keys(doc! {"userConfigId":1})
-            .options(
-                IndexOptions::builder()
-                    .unique(true)
-                    .name("userConfigId".to_string())
-                    .build(),
-            )
-            .build();
         indexes.push(user_id_index);
-        indexes.push(user_config_id_index);
         let _ = IndexFunctions::delete_existing_indexes(&collection, &mut indexes).await;
         let option: Option<CreateIndexesResult> = None;
         if indexes.len() == 0 {

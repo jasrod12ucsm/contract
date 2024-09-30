@@ -23,7 +23,7 @@ pub struct User {
     pub address: String,
     pub lvl:i32,
     #[serde(rename = "typeProvider")]
-    pub type_provider: String,//COMPANY, ATM, chef waiter
+    pub type_provider: String,//COMPANY, ATM, chef waiter,Delegate
     #[serde(rename = "employedBy")]
     pub employed_by: Option<ObjectId>,
     #[serde(rename = "closeHour")]

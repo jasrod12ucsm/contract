@@ -5,14 +5,13 @@ use crate::{
             register_user_client_dto::RegisterUserClientDto,
         },
         models::{
-            email_sended::EmailSended, get_token_result::GetTokenResult, login_result::LoginResult,
-            renew_result::RenewResult, user_id::UserId,
+            email_sended::EmailSended, login_result::LoginResult, renew_result::RenewResult,
+            user_id::UserId,
         },
     },
     utils::{
         email_functions::EmailFunctions,
-        infraestructure::restaurant_callback::RestaurantCallback,
-        jwt::generate::generate_jwt,
+        jwt::generate::{generate_jwt, generate_refresh_jwt},
         repositories::{
             app_variables_repository::AppVariablesRepository,
             country_repository::CountryRepository,
@@ -50,7 +49,11 @@ use bod_models::{
             },
         },
     },
-    shared::{bson::to_bson::ToBson, jwt::claims::DefaultClaims},
+    shared::{
+        bson::to_bson::ToBson,
+        geo_point::GeoPoint,
+        jwt::claims::{DefaultClaims, RenewClaims},
+    },
 };
 use bson::{oid::ObjectId, DateTime};
 use common::{
@@ -177,7 +180,7 @@ pub async fn singup_client(
         .ok_or_else(|| Either::Right(UserError::CreateUserError("incorrect region")))?;
     let user_config = user_config_repository
         .find_one(doc! {"email":email.clone()})
-         .selection_criteria(SelectionCriteria::ReadPreference(
+        .selection_criteria(SelectionCriteria::ReadPreference(
             mongodb::options::ReadPreference::Primary,
         ))
         .session(&mut session)
@@ -272,7 +275,7 @@ pub async fn singup_client(
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?;
-    let token = generate_jwt(user_inserted.clone())
+    let token = generate_refresh_jwt()
         .map_err(|_| UserConfigError::CreateUserError("error generating token"));
     if token.is_err() {
         return Err(Either::Left(UserConfigError::CreateUserError(
@@ -315,13 +318,13 @@ pub async fn singup_client(
         .country::<ShortCountry>(country.into())
         .region::<ShortRegion>(region.into())
         .name(name.clone())
-        .latitude(latitude)
-        .longitude(longitude)
+        .location(GeoPoint::new(longitude, latitude))
         .efective_area(efective_area)
         .num_mesas(0)
         .time_zone(timezone)
         .is_active(true)
         .is_deleted(false)
+        .content_type_ids(vec![])
         .build()
         .map_err(|_| {
             Either::Left(UserConfigError::CreateUserError(
@@ -377,14 +380,14 @@ pub async fn singup_client(
     {
         Ok(Some(variables)) => variables,
         Ok(None) => {
-            session.abort_transaction();
+            let _ = session.abort_transaction();
             return Err(Either::Left(UserConfigError::CreateUserError(
                 "app variables not found",
             )));
         }
         Err(err) => {
             println!("{:?}", err);
-            session.abort_transaction();
+            let _ = session.abort_transaction();
             return Err(Either::Left(UserConfigError::CreateUserError(
                 "error finding app variables",
             )));
@@ -605,11 +608,6 @@ pub async fn login_client(
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al obtener UserConfigRepository"))?;
 
-    let reset_token_repository: ResetTokenRepository = repo
-        .get_repository::<ResetTokenRepository>()
-        .await
-        .map_err(|_| UserConfigError::LoginUserError("Error al obtener ResetTokenRepository"))?;
-
     let user_repository: UserRepository = repo
         .get_repository::<UserRepository>()
         .await
@@ -620,16 +618,16 @@ pub async fn login_client(
         .find_one(doc! {"email":email.clone()})
         .await
         .map_err(|_err| UserConfigError::LoginUserError("Error al buscar UserConfig"))?;
-    let restaurant_repository: RestaurantRepository = repo
-        .get_repository::<RestaurantRepository>()
-        .await
-        .map_err(|_| UserConfigError::LoginUserError("Error al obtener restaurant repo"))?;
     // Si no hay nada con ese email, mandar error de logeo
     if user_config.is_none() {
         return Err(UserConfigError::LoginUserError(
             "No se encontró ningún usuario con ese email",
         ));
     }
+    let reset_token_repository: ResetTokenRepository = repo
+        .get_repository::<ResetTokenRepository>()
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Error al obtener ResetTokenRepository"))?;
 
     // Hacer unwrap de user config
     let user_config = user_config.unwrap();
@@ -649,102 +647,51 @@ pub async fn login_client(
     }
 
     // Crear token si es necesario (búsqueda en tabla)
-    println!("{:?}", user_config.id);
-    let token_register = reset_token_repository
-        .find_one(doc! {"userConfigId":user_config.id,"noActive":true})
+    let user = user_repository
+        .find_one(doc! {"userConfig._id":user_config.id})
         .await
-        .map_err(|_| UserConfigError::LoginUserError("Error al buscar ResetToken"))?;
+        .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
+        .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
 
-    let secret = ENV.get_string("SECRET_KEY").unwrap().to_string();
-    println!("{:?}", token_register);
-    if let Some(token_register) = token_register {
-        let token = token_register.token;
-        match jsonwebtoken::decode::<DefaultClaims>(
-            &token,
-            &DecodingKey::from_secret(secret.to_string().as_ref()),
-            &Validation::default(),
-        ) {
-            Ok(_token_desencrypted) => {
-                let user = user_repository
-                    .find_one(doc! {"userConfig._id":user_config.id})
-                    .await
-                    .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
-                    .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-                let short_user_config: ShortUserConfig = user_config.into();
-                let mut login_result = LoginResult::from(&user, short_user_config);
+    let new_token = generate_jwt(user.id)
+        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
 
-                {
-                    // Crear el callback y llamarlo
-                    let callback = RestaurantCallback::create_callback();
-                    callback(&user, &restaurant_repository, &mut login_result).await?;
-                }
-                return Ok(JsonAdvanced(login_result));
-            }
-            Err(err) => {
-                match err.kind() {
-                    jsonwebtoken::errors::ErrorKind::InvalidToken
-                    | jsonwebtoken::errors::ErrorKind::InvalidSignature
-                    | jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                        let user = user_repository
-                            .find_one(doc! {"userConfig._id":user_config.id})
-                            .await
-                            .map_err(|_| {
-                                UserConfigError::LoginUserError("Error al buscar el usuario")
-                            })?
-                            .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-
-                        let new_token = generate_jwt(user).map_err(|_| {
-                            UserConfigError::LoginUserError("Error al generar nuevo token")
-                        })?;
-
-                        let filter = doc! {"userId":user_config.id};
-                        let doc_insert_token = doc! {
-                            "$set":{ "token": &new_token }
-                        };
-
-                        reset_token_repository
-                            .update_one(filter, doc_insert_token)
-                            .await
-                            .map_err(|_| {
-                                UserConfigError::LoginUserError("Error al actualizar el token")
-                            })?;
-
-                        let user = user_repository
-                            .find_one(doc! {"userConfig._id":user_config.id})
-                            .await
-                            .map_err(|_| {
-                                UserConfigError::LoginUserError("Error al buscar el usuario")
-                            })?
-                            .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-                        let short_user_config: ShortUserConfig = user_config.into();
-                        let mut login_result = LoginResult::from(&user, short_user_config);
-
-                        {
-                            // Crear el callback y llamarlo
-                            let callback = RestaurantCallback::create_callback();
-                            callback(&user, &restaurant_repository, &mut login_result).await?;
-                        }
-                        return Ok(JsonAdvanced(login_result));
-                    }
-                    _ => {}
-                }
-                return Err(UserConfigError::LoginUserError(
-                    "Error desconocido al decodificar el token",
-                ));
-            }
-        };
-    } else {
+    let user = user_repository
+        .find_one(doc! {"userConfig._id":user_config.id})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
+        .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
+    let reset_token = generate_refresh_jwt();
+    if reset_token.is_err() {
         return Err(UserConfigError::LoginUserError(
-            "No se encontró un registro de token",
+            "Error al generar nuevo token",
         ));
     }
+    let reset_token = reset_token.unwrap();
+    let filter = doc! {
+        "userId":user.id
+    };
+    let update_doc = doc! {
+        "$set":{
+            "token":reset_token.as_str()
+        }
+    };
+    let _reset_token_insertion = reset_token_repository
+        .update_one(filter, update_doc)
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+    let short_user_config: ShortUserConfig = user_config.into();
+    let login_result = LoginResult::from(&user, short_user_config, new_token,reset_token);
+
+    return Ok(JsonAdvanced(login_result));
 }
-//funcion para renovar token
+//TODO renovar con refresh token no guardar token normal, cambialo en un dia
 #[web::get("renew/{id}")]
 pub async fn renew(
     id_path: Path<IdPath>,
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<RenewResult>, ResetTokenError> {
+    let secret = ENV.get_string("SECRET_KEY").unwrap().to_string();
     let id = ObjectId::from_str(id_path.id()).unwrap();
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
@@ -762,45 +709,11 @@ pub async fn renew(
         .map_err(|_| ResetTokenError::UpdateTokenError("cannot find user"))?
         .ok_or(ResetTokenError::UpdateTokenError("cannot find user"))?;
 
-    let new_token = generate_jwt(user)
+    let new_token = generate_jwt(user.id)
         .map_err(|_| ResetTokenError::UpdateTokenError("cannot interact with jwt"))?;
-    //ahora actualizamos la tabla con el nuevo token
-    let filter = doc! {"userId":id};
-    let doc_insert_token = doc! {
-        "$set":{
-            "token":&new_token
-        }
-    };
-    let _reset_token_insertion = reset_token_repository
-        .update_one(filter, doc_insert_token)
-        .await
-        .map_err(|_| ResetTokenError::UpdateTokenError("cannot insert token"))?;
+
     Ok(JsonAdvanced(RenewResult {
         success: true,
-        message: "token generated".to_string(),
+        message: new_token.to_string(),
     }))
-}
-//* habra un metodo para obtener el token actual de la tabla, ese metodo es gettoken */
-//*desde el front tienen que llamarlo con cuidado, solo si tienen un usuario cargado */
-#[web::get("gettoken/{id}")]
-pub async fn get_token(
-    id_path: Path<IdPath>,
-    repo: State<PublicRepository>,
-) -> Result<JsonAdvanced<GetTokenResult>, ResetTokenError> {
-    let id = ObjectId::from_str(id_path.id()).unwrap();
-    let reset_token_repository: ResetTokenRepository = repo
-        .get_repository::<ResetTokenRepository>()
-        .await
-        .map_err(|_| ResetTokenError::UpdateTokenError("cannot update token"))?;
-    let token_register = reset_token_repository
-        .find_one(doc! {"userId":id})
-        .await
-        .map_err(|_| ResetTokenError::UpdateTokenError("no se puede obtener token"))?;
-    if token_register.is_none() {
-        return Err(ResetTokenError::UpdateTokenError(
-            "no se puede obtener token",
-        ));
-    }
-    let token = token_register.unwrap().token;
-    Ok(JsonAdvanced(GetTokenResult { token }))
 }

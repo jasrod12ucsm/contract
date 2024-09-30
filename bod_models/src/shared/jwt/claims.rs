@@ -1,13 +1,13 @@
-use crate::schemas::mst::user::models::user_with_id::UserWithId;
+use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug,Serialize,Deserialize)]
 pub struct DefaultClaims{
     exp:usize,
-    user: UserWithId
+    user: ObjectId
 }
 impl DefaultClaims{
-    pub fn new(exp:usize, user:UserWithId) -> Self{
+    pub fn new(exp:usize, user:ObjectId) -> Self{
         Self{
             exp,
             user
@@ -18,7 +18,25 @@ impl DefaultClaims{
         self.exp
     }
     
-    pub fn user(&self) -> &UserWithId {
+    pub fn user(&self) -> &ObjectId {
         &self.user
+    }
+}
+
+
+
+#[derive(Debug,Serialize,Deserialize)]
+pub struct RenewClaims{
+    exp:usize,
+}
+impl RenewClaims{
+    pub fn new(exp:usize) -> Self{
+        Self{
+            exp
+        }
+    }
+    
+    pub fn exp(&self) -> usize {
+        self.exp
     }
 }

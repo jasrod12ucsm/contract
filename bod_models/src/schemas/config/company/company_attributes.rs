@@ -2,7 +2,7 @@ use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use crate::schemas::{
-    location::{country::models::short_country::ShortCountry, region::{models::short_region::ShortRegion, region::Region}},
+    location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion},
     mst::user::models::short_user::ShortUser,
 };
 
