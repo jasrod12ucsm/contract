@@ -24,5 +24,9 @@ pub struct RegisterUserClientDto {
     pub longitude:f64,
     pub birthdate:String,
     #[serde(rename="efectiveArea")]
-    pub efective_area:i32
+    pub efective_area:i32,
+    pub os:String,
+    pub mac:String,
+    #[serde(rename="cardPlan")]
+    pub card_plan:String,
 }

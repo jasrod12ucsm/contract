@@ -1,24 +1,29 @@
 use crate::{
     modules::authentication::{
         data::{
-            authenticate_post_code::AuthenticatePostCode, login_client_dto::LoginCLientDto,
-            register_user_client_dto::RegisterUserClientDto,
+            authenticate_post_code::AuthenticatePostCode, login_by_token_dto::LoginByTokenDto,
+            login_client_dto::LoginCLientDto, register_user_client_dto::RegisterUserClientDto,
+            renew_token_dto::RenewTokenDto,
         },
         models::{
             email_sended::EmailSended, login_result::LoginResult, renew_result::RenewResult,
             user_id::UserId,
         },
     },
-    utils::{
+    utils::infrastructure::{
         email_functions::EmailFunctions,
         jwt::generate::{generate_jwt, generate_refresh_jwt},
         repositories::{
             app_variables_repository::AppVariablesRepository,
+            card_plan_repository::CardPlanRepository,
+            company_repository::CompanyRepository,
             country_repository::CountryRepository,
             email_template_repository::EmailTemplateRepository,
-            region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
+            region_repository::RegionRepository,
+            reset_token_repository::ResetTokenRepository,
             restaurant_repository::RestaurantRepository,
-            user_config_repository::UserConfigRepository, user_repository::UserRepository,
+            user_config_repository::UserConfigRepository,
+            user_repository::UserRepository,
         },
     },
     FINDER,
@@ -26,15 +31,12 @@ use crate::{
 use bod_models::{
     schemas::{
         config::{
+            company::company_attributes::CompanyAttributesBuilder,
             reset_token::{
                 reset_token_attributes::ResetTokenAttributes, reset_token_errors::ResetTokenError,
             },
             user_config::{
-                models::{
-                    short_user_config::ShortUserConfig, user_config_with_id::UserConfigWithId,
-                },
-                user_config_attributes::UserConfigAttributes,
-                user_config_errors::UserConfigError,
+                models::short_user_config::ShortUserConfig, user_config_attributes::UserConfigAttributes, user_config_errors::UserConfigError
             },
         },
         location::{
@@ -49,17 +51,12 @@ use bod_models::{
             },
         },
     },
-    shared::{
-        bson::to_bson::ToBson,
-        geo_point::GeoPoint,
-        jwt::claims::{DefaultClaims, RenewClaims},
-    },
+    shared::{bson::to_bson::ToBson, geo_point::GeoPoint},
 };
 use bson::{oid::ObjectId, DateTime};
 use common::{
     helpers::{
-        env::env::ENV, password::password_functions::PasswordFunctions,
-        smtp::smtp_functions::SmtpFunctions,
+        password::password_functions::PasswordFunctions, smtp::smtp_functions::SmtpFunctions,
     },
     public::models::path::IdPath,
     utils::ntex_private::{
@@ -68,13 +65,13 @@ use common::{
     },
 };
 
-use jsonwebtoken::{DecodingKey, Validation};
 use mongodb::{bson::doc, options::SelectionCriteria};
 use ntex::{
     util::Either,
     web::{
         self,
         types::{Json, Path, State},
+        HttpRequest,
     },
 };
 use std::str::FromStr;
@@ -85,6 +82,8 @@ pub async fn singup_client(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<UserId>, Either<UserConfigError, UserError>> {
     let RegisterUserClientDto {
+        os,
+        mac,
         names,
         surnames,
         email,
@@ -99,6 +98,7 @@ pub async fn singup_client(
         longitude,
         latitude,
         efective_area,
+        card_plan,
     } = register_dto.into_inner();
     //iniciamos repositorios
     let user_config_repository: UserConfigRepository = repo
@@ -108,6 +108,10 @@ pub async fn singup_client(
 
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
+        .await
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
+    let company_repository: CompanyRepository = repo
+        .get_repository::<CompanyRepository>()
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
     let user_repository: UserRepository = repo
@@ -120,6 +124,10 @@ pub async fn singup_client(
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
     let region_repository: RegionRepository = repo
         .get_repository::<RegionRepository>()
+        .await
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
+    let card_ṕlan_repository: CardPlanRepository = repo
+        .get_repository::<CardPlanRepository>()
         .await
         .map_err(|_| Either::Left(UserConfigError::CreateUserError("internal code error")))?;
     //trae email template repository
@@ -223,19 +231,7 @@ pub async fn singup_client(
     //enviar el codigo al email
 
     //3. devolver token
-    let user_config_with_id = UserConfigWithId {
-        id: user_config_inserted.id,
-        names: user_config_to_insert.names,
-        surnames: user_config_to_insert.surnames,
-        email: user_config_to_insert.email,
-        password: user_config_to_insert.password,
-        account_type: user_config_to_insert.account_type,
-        is_authenticated: user_config_to_insert.is_authenticated,
-        is_active: user_config_to_insert.is_active,
-        is_deleted: user_config_to_insert.is_deleted,
-        created_at: user_config_inserted.created_at,
-        updated_at: user_config_inserted.updated_at,
-    };
+    let user_config_with_id = user_config_inserted.clone();
 
     let user_config_with_id: ShortUserConfig = user_config_with_id.into();
 
@@ -275,7 +271,7 @@ pub async fn singup_client(
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?;
-    let token = generate_refresh_jwt()
+    let token = generate_refresh_jwt(os.as_str(), user_inserted.id)
         .map_err(|_| UserConfigError::CreateUserError("error generating token"));
     if token.is_err() {
         return Err(Either::Left(UserConfigError::CreateUserError(
@@ -284,12 +280,8 @@ pub async fn singup_client(
     }
     //2. guardar token en la tabla token
     let copy_token = token.as_ref().unwrap().as_str();
-    let reset_token_to_insert = ResetTokenAttributes::new(
-        copy_token.to_string(),
-        user_inserted.id,
-        code,
-        user_config_inserted.id,
-    );
+    let reset_token_to_insert =
+        ResetTokenAttributes::new(copy_token.to_string(), user_inserted.id, code, os, mac);
     let doc_insert_token = doc! {
         "$set":bson::to_bson(&reset_token_to_insert).unwrap()
     };
@@ -315,15 +307,16 @@ pub async fn singup_client(
         .address(address)
         .close_hour(AtentionHourBuilder::default().build().unwrap())
         .open_hour(AtentionHourBuilder::default().build().unwrap())
-        .country::<ShortCountry>(country.into())
-        .region::<ShortRegion>(region.into())
+        .country::<ShortCountry>(country.clone().into())
+        .region::<ShortRegion>(region.clone().into())
         .name(name.clone())
         .location(GeoPoint::new(longitude, latitude))
         .efective_area(efective_area)
-        .num_mesas(0)
         .time_zone(timezone)
         .is_active(true)
         .is_deleted(false)
+        .company_id(user_inserted.id)
+        .employee_count(0)
         .content_type_ids(vec![])
         .build()
         .map_err(|_| {
@@ -335,6 +328,40 @@ pub async fn singup_client(
         .map_err(|_| {
             Either::Left::<UserConfigError, UserError>(UserConfigError::CreateUserError(
                 "error updating token table",
+            ))
+        })?;
+    //TODO generar subscription culqi
+    //buscamos el id del cardplan
+    let card_plan = card_ṕlan_repository
+        .find_one(doc! {"_id":card_plan,"noDeleted":true})
+        .session(&mut session)
+        .await
+        .map_err(|_| {
+            let _ = session.abort_transaction();
+            Either::Left(UserConfigError::CreateUserError("error finding card plan"))
+        })?
+        .ok_or_else(|| Either::Left(UserConfigError::CreateUserError("card plan not found")))?;
+    let company_insertion_data = CompanyAttributesBuilder::default()
+        .id(user_inserted.id)
+        .country::<ShortCountry>(country.into())
+        .region::<ShortRegion>(region.into())
+        .employee_count(0)
+        .card_plan(card_plan.id)
+        .is_active(true)
+        .is_deleted(false)
+        .build()
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("error creating company")))?
+        .to_bson()
+        .map_err(|_| Either::Left(UserConfigError::CreateUserError("error creating company")))?;
+    let _ = company_repository
+        .find_one_and_update(doc! {"_id":user_config_inserted.id}, company_insertion_data)
+        .session(&mut session)
+        .upsert(true)
+        .await
+        .map_err(|_| {
+            let _ = session.abort_transaction();
+            Either::Left(UserConfigError::CreateUserError(
+                "error on company insertion",
             ))
         })?;
 
@@ -355,7 +382,6 @@ pub async fn singup_client(
         .map_err(|_err| Either::Right(UserError::CreateUserError("error commiting transaction")))?;
     let data_to_return = UserId {
         user: user_inserted.id.to_string(),
-        user_config_id: user_config_inserted.id.to_string(),
         email: user_config_inserted.email,
     };
 
@@ -433,6 +459,8 @@ pub async fn resend_email(
 ) -> Result<JsonAdvanced<EmailSended>, ResetTokenError> {
     //aqui enviamos el email
     let id_path = path.id();
+    let object_id_path =
+        ObjectId::from_str(id_path).map_err(|_| ResetTokenError::GetTokenError("error in id"))?;
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
@@ -446,16 +474,8 @@ pub async fn resend_email(
         .get_repository::<UserConfigRepository>()
         .await
         .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?;
-    let current_user = repo
-        .get_repository::<UserRepository>()
-        .await
-        .map_err(|_| ResetTokenError::GetTokenError("internal server error"))?
-        .find_one(doc! {"_id":ObjectId::parse_str(id_path).unwrap()})
-        .await
-        .map_err(|_| ResetTokenError::GetTokenError("cannot get user"))?
-        .ok_or_else(|| ResetTokenError::GetTokenError("invalid user"))?;
     let current_user_config = user_config_repository
-        .find_one(doc! {"_id":current_user.user_config})
+        .find_one(doc! {"_id":object_id_path})
         .await
         .map_err(|_| ResetTokenError::GetTokenError("cannot get that user"))?
         .ok_or_else(|| ResetTokenError::GetTokenError("user configuration not exist"))?;
@@ -469,7 +489,7 @@ pub async fn resend_email(
     //actualizar la tabla de reset_token con ese random_number
 
     let filter = doc! {
-        "userId":current_user.id,"noActive":true
+        "userId":object_id_path,"noActive":true
     };
     let update_doc = doc! {
         "$set":{
@@ -575,7 +595,7 @@ pub async fn authenticate(
     //actualizamos tabla userConfig con isAuthenticated 1
     //aqui el fiiltro
     let filter = doc! {
-        "_id": token.user_config_id
+        "_id": token.user_id
     };
     let update_doc = doc! {
         "$set":{
@@ -601,8 +621,14 @@ pub async fn login_client(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<LoginResult>, UserConfigError> {
     // No hacemos validación del tipo de cuenta, ya que todos los tipos pueden entrar como clientes
-    let LoginCLientDto { email, password } = login_dto.into_inner();
-    //* Crear repos */
+    let LoginCLientDto {
+        os,
+        email,
+        password,
+        mac,
+    } = login_dto.into_inner();
+
+    // Crear repos
     let user_config_repository: UserConfigRepository = repo
         .get_repository::<UserConfigRepository>()
         .await
@@ -613,90 +639,263 @@ pub async fn login_client(
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al obtener UserRepository"))?;
 
-    // Buscar registro por email
-    let user_config = user_config_repository
-        .find_one(doc! {"email":email.clone()})
-        .await
-        .map_err(|_err| UserConfigError::LoginUserError("Error al buscar UserConfig"))?;
-    // Si no hay nada con ese email, mandar error de logeo
-    if user_config.is_none() {
-        return Err(UserConfigError::LoginUserError(
-            "No se encontró ningún usuario con ese email",
-        ));
-    }
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al obtener ResetTokenRepository"))?;
 
-    // Hacer unwrap de user config
-    let user_config = user_config.unwrap();
+    // Buscar registro por email
+    let user_config = user_config_repository
+        .find_one(doc! {"email": email.clone()})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Error al buscar UserConfig"))?
+        .ok_or(UserConfigError::LoginUserError(
+            "No se encontró ningún usuario con ese email",
+        ))?;
 
     // Verificar si está autenticado
     if !user_config.is_authenticated {
         return Err(UserConfigError::AuthenticateError("Usuario no autenticado"));
     }
 
-    // Validar datos desencriptados.
+    // Validar datos desencriptados
     let is_equal_passwords =
-        PasswordFunctions::verify_password(&(user_config.password), &(password))
+        PasswordFunctions::verify_password(&user_config.password, &password)
             .map_err(|_| UserConfigError::LoginUserError("Error al verificar la contraseña"))?;
 
     if !is_equal_passwords {
         return Err(UserConfigError::LoginUserError("Contraseña incorrecta"));
     }
 
-    // Crear token si es necesario (búsqueda en tabla)
+    // Buscar usuario
     let user = user_repository
-        .find_one(doc! {"userConfig._id":user_config.id})
+        .find_one(doc! {"userConfig._id": user_config.id})
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
         .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
 
+    // Crear token
     let new_token = generate_jwt(user.id)
         .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
 
-    let user = user_repository
-        .find_one(doc! {"userConfig._id":user_config.id})
-        .await
-        .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
-        .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
-    let reset_token = generate_refresh_jwt();
-    if reset_token.is_err() {
-        return Err(UserConfigError::LoginUserError(
-            "Error al generar nuevo token",
-        ));
-    }
-    let reset_token = reset_token.unwrap();
-    let filter = doc! {
-        "userId":user.id
-    };
-    let update_doc = doc! {
-        "$set":{
-            "token":reset_token.as_str()
-        }
-    };
-    let _reset_token_insertion = reset_token_repository
-        .update_one(filter, update_doc)
-        .await
-        .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
-    let short_user_config: ShortUserConfig = user_config.into();
-    let login_result = LoginResult::from(&user, short_user_config, new_token,reset_token);
+    let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
 
-    return Ok(JsonAdvanced(login_result));
+    let token = reset_token_repository
+        .find_one(doc! {"userId": user.id})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("internal error"))?
+        .ok_or_else(|| UserConfigError::LoginUserError("no token found"))?;
+
+    // Verificar token
+    let num_devices = token.devices.len();
+    let mac_in_devices = token.devices.iter().find(|device| device.mac == mac);
+
+    if mac_in_devices.is_none() {
+        if num_devices < 2 {
+            let update_doc = doc! {
+                "$push": {
+                    "devices": {
+                        "os": os.as_str(),
+                        "mac": mac.as_str(),
+                        "token": reset_token.as_str()
+                    }
+                }
+            };
+            reset_token_repository
+                .update_one(doc! {"userId": user.id}, update_doc)
+                .await
+                .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+        } else {
+            return Err(UserConfigError::LoginUserError("no more devices allowed"));
+        }
+    } else {
+        let mac_in_devices = mac_in_devices.unwrap().mac.as_str();
+        let filter = doc! {
+            "userId": user.id,
+        };
+
+        // Documento de actualización con array filter
+        let update_doc = doc! {
+            "$set": {
+                "devices.$[device].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
+                "devices.$[device].os": os,
+            }
+        };
+
+        reset_token_repository
+            .update_one(filter, update_doc)
+            .array_filters(vec![doc! {"device.mac": mac_in_devices}])
+            .await
+            .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+    }
+
+    let short_user_config: ShortUserConfig = user_config.into();
+    let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
+
+    Ok(JsonAdvanced(login_result))
 }
+#[web::post("login/client/token")]
+pub async fn login_by_token(
+    req: HttpRequest,
+    login_dto: JsonAdvanced<LoginByTokenDto>,
+    repo: State<PublicRepository>,
+) -> Result<JsonAdvanced<LoginResult>, UserConfigError> {
+    // Obtener el ID del usuario desde req.extension().get()
+    let LoginByTokenDto { mac, os } = login_dto.into_inner();
+    let user_id = req
+        .extensions()
+        .get::<ObjectId>()
+        .ok_or(UserConfigError::LoginUserError("User ID not found"))?
+        .clone();
+    let user_repository: UserRepository = repo
+        .get_repository::<UserRepository>()
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Internal server error"))?;
+    let user_config_repository=repo
+        .get_repository::<UserConfigRepository>()
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Internal server error"))?;
+    let user_config=user_config_repository
+        .find_one(doc! {"_id":user_id})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("User not found"))?
+        .ok_or(UserConfigError::LoginUserError("User not found"))?;
+    // Buscar el usuario en la base de datos usando el ID
+    let user = user_repository
+        .find_one(doc! {"_id": user_id})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("User not found"))?
+        .ok_or(UserConfigError::LoginUserError("User not found"))?;
+
+    // Obtener el repositorio de reset tokens
+    let reset_token_repository: ResetTokenRepository = repo
+        .get_repository::<ResetTokenRepository>()
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("Internal server error"))?;
+
+    // Generar un nuevo token JWT
+    // Crear token
+    let new_token = generate_jwt(user.id)
+        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
+
+    let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
+
+    let token = reset_token_repository
+        .find_one(doc! {"userId": user.id})
+        .await
+        .map_err(|_| UserConfigError::LoginUserError("internal error"))?
+        .ok_or_else(|| UserConfigError::LoginUserError("no token found"))?;
+
+    // Verificar token
+    let num_devices = token.devices.len();
+    let mac_in_devices = token.devices.iter().find(|device| device.mac == mac);
+
+    if mac_in_devices.is_none() {
+        if num_devices < 2 {
+            let update_doc = doc! {
+                "$push": {
+                    "devices": {
+                        "os": os.as_str(),
+                        "mac": mac.as_str(),
+                        "token": reset_token.as_str()
+                    }
+                }
+            };
+            reset_token_repository
+                .update_one(doc! {"userId": user.id}, update_doc)
+                .await
+                .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+        } else {
+            return Err(UserConfigError::LoginUserError("no more devices allowed"));
+        }
+    } else {
+        let mac_in_devices = mac_in_devices.unwrap().mac.as_str();
+        let filter = doc! {
+            "userId": user.id,
+        };
+
+        // Documento de actualización con array filter
+        let update_doc = doc! {
+            "$set": {
+                "devices.$[device].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
+                "devices.$[device].os": os,
+            }
+        };
+
+        reset_token_repository
+            .update_one(filter, update_doc)
+            .array_filters(vec![doc! {"device.mac": mac_in_devices}])
+            .await
+            .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+    }
+
+    let short_user_config: ShortUserConfig = user_config.into();
+    let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
+
+    Ok(JsonAdvanced(login_result))
+}
+
 //TODO renovar con refresh token no guardar token normal, cambialo en un dia
-#[web::get("renew/{id}")]
+#[web::post("renew/{}")]
 pub async fn renew(
+    req: HttpRequest,
+    os: JsonAdvanced<RenewTokenDto>,
     id_path: Path<IdPath>,
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<RenewResult>, ResetTokenError> {
-    let secret = ENV.get_string("SECRET_KEY").unwrap().to_string();
-    let id = ObjectId::from_str(id_path.id()).unwrap();
     let reset_token_repository: ResetTokenRepository = repo
         .get_repository::<ResetTokenRepository>()
         .await
         .map_err(|_| ResetTokenError::UpdateTokenError("internal server error"))?;
+    let RenewTokenDto { os } = os.into_inner();
+    let is_active_refresh: bool = req.extensions().get::<bool>().cloned().unwrap_or(true);
+    let id = req
+        .extensions()
+        .get::<ObjectId>()
+        .cloned()
+        .ok_or_else(|| ResetTokenError::CreateTokenError("Error creating token"))?;
+    let os_in_token = req.extensions().get::<String>().cloned();
+    let id_path = ObjectId::parse_str(id_path.id())
+        .map_err(|_| ResetTokenError::UpdateTokenError("error parsing id"))?;
+    let refresh_token: String;
+    if id != id_path {
+        return Err(ResetTokenError::UpdateTokenError("error parsing id"));
+    }
+
+    if !is_active_refresh {
+        //genera un nuevo refresh token
+        refresh_token = generate_refresh_jwt(os.to_owned().as_str(), id)
+            .map_err(|_| ResetTokenError::UpdateTokenError("error generating token"))?;
+        //actualizar en base de datos
+        let filter = doc! {"userId":id};
+        let update = doc! {"$set":{
+            "devices.$[device].token":refresh_token.clone()
+        }};
+        let array_filter = doc! {"device.os":os};
+        let _ = reset_token_repository
+            .update_one(filter, update)
+            .array_filters(vec![array_filter])
+            .await
+            .map_err(|_| ResetTokenError::UpdateTokenError("sistema operativo no aceptado"))?;
+    } else {
+        if os != os_in_token.unwrap() {
+            return Err(ResetTokenError::UpdateTokenError("error os"));
+        }
+        refresh_token = reset_token_repository
+            .find_one(doc! {"userId":id})
+            .await
+            .map_err(|_| ResetTokenError::UpdateTokenError("error finding token"))?
+            .unwrap()
+            .devices
+            .iter()
+            .find(|device| device.os == os)
+            .ok_or_else(|| ResetTokenError::UpdateTokenError("error finding that active device"))?
+            .token
+            .clone();
+    }
+
     //user repository
     let user_repository: UserRepository = repo
         .get_repository::<UserRepository>()
@@ -715,5 +914,6 @@ pub async fn renew(
     Ok(JsonAdvanced(RenewResult {
         success: true,
         message: new_token.to_string(),
+        refresh_token: Some(refresh_token),
     }))
 }

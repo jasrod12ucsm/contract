@@ -35,8 +35,8 @@ pub struct Restaurant {
     #[serde(rename = "contentTypeIds")]
     pub content_type_ids: Vec<ObjectId>,
     pub address: String,
-    #[serde(rename = "numMesas")]
-    pub num_mesas: i32,
+    #[serde(rename = "employeeCount")]
+    pub employee_count: i32,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -76,9 +76,6 @@ impl RestaurantBuilder {
         }
         if self.address.is_none() {
             return Err("Address is required".into());
-        }
-        if self.num_mesas.is_none() {
-            return Err("Number of tables is required".into());
         }
         if self.time_zone.is_none() {
             return Err("Time zone is required".into());
@@ -149,9 +146,6 @@ impl RestaurantBuilder {
         if let Some(address) = &self.address {
             doc.insert("address", address);
         }
-        if let Some(num_mesas) = &self.num_mesas {
-            doc.insert("numMesas", num_mesas);
-        }
         if let Some(is_active) = &self.is_active {
             doc.insert("isActive", is_active);
         }
@@ -188,12 +182,13 @@ impl Restaurant {
         region: ShortRegion,
         name: String,
         address: String,
-        num_mesas: i32,
         time_zone: String,
         company_id: ObjectId,
         content_type_ids: Vec<ObjectId>,
+        employee_count: i32,
     ) -> Restaurant {
         Restaurant {
+            employee_count,
             content_type_ids,
             company_id,
             time_zone,
@@ -205,7 +200,6 @@ impl Restaurant {
             region,
             name,
             address,
-            num_mesas,
             is_active: true,
             is_deleted: false,
             updated_at: DateTime::now(),
@@ -218,7 +212,7 @@ pub struct RestaurantSchema;
 
 impl BaseColleccionNames for Restaurant {
     fn get_collection_name() -> &'static str {
-        "mst-restaurant"
+        "mst-store"
     }
 
     fn get_database_name() -> &'static str {

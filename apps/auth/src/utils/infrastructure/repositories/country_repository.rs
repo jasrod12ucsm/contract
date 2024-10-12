@@ -32,7 +32,7 @@ impl Repository<Country,CountryWithId> for CountryRepository {
 }
 
 impl CountryRepository {
-    pub async fn new(repository: &PublicRepository) -> Result<Self, mongodb::error::Error> {
+    pub fn new(repository: &PublicRepository) -> Result<Self, mongodb::error::Error> {
         let client = repository.get_client()?;
         let collection: Collection<Country> = client
             .database(Country::get_database_name())
@@ -59,7 +59,7 @@ impl SetPublicRepository for CountryRepository {
             let value = &COUNTRY_REPOSITORY;
 
             if value.lock().unwrap().is_none() {
-                let obj_repository = CountryRepository::new(repository).await?;
+                let obj_repository = CountryRepository::new(repository)?;
                 *(value.lock().unwrap()) = Some(obj_repository);
             }
 

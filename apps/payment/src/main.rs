@@ -1,10 +1,6 @@
-use bod_models::shared::schema::Schema;
 use common::{
     helpers::{env::env::ENV, ip::ip_functions::IpFunctions},
-    utils::ntex_private::{
-        collection::collection::{Collection, CollectionFunctions},
-        repository::public_repository::PublicRepository,
-    },
+    utils::ntex_private::repository::public_repository::PublicRepository,
 };
 use ntex::web::{self};
 use ntex_cors::Cors;

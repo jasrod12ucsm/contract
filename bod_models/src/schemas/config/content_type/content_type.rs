@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bson::{doc, DateTime};
+use bson::{doc, oid::ObjectId, DateTime};
 use derive_builder::Builder;
 use mongodb::{options::IndexOptions, results::CreateIndexesResult, Client, IndexModel};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,8 @@ use crate::shared::{
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct ContentType {
     #[serde(rename = "_id")]
-    pub id: String,
+    pub id: ObjectId,
+    pub name: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -48,6 +49,9 @@ impl ContentTypeBuilder {
         let mut doc = doc! {};
         if let Some(id) = &self.id {
             doc.insert("_id", id);
+        }
+        if let Some(name) = &self.name {
+            doc.insert("name", name);
         }
         if let Some(is_active) = &self.is_active {
             doc.insert("isActive", is_active);
@@ -95,9 +99,8 @@ impl Schema for ContentTypeSchema {
             .database(self.get_database_name())
             .collection::<ContentType>(self.get_collection_name());
         let mut indexes: Vec<IndexModel> = vec![];
-
         let unique_name_index = IndexModel::builder()
-            .keys(doc! {"_id": 1, "isDeleted": 1, "isActive": 1})
+            .keys(doc! {"name": 1, "isDeleted": 1, "isActive": 1})
             .options(
                 IndexOptions::builder()
                     .unique(true)

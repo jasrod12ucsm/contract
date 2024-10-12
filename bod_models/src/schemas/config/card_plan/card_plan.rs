@@ -30,6 +30,8 @@ pub struct RestaurantsData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardPlan {
+    #[serde(rename = "_id")]
+    pub id:String,//name
     pub render: Render,
     pub price_per_restaurant: i32,
     #[serde(rename = "restaurantsData")]
@@ -47,6 +49,7 @@ impl CardPlan {
         render: Render,
         price_per_restaurant: i32,
         restaurants_data: Vec<RestaurantsData>,
+        id: String,
     ) -> CardPlan {
         CardPlan {
             price_actualized_date: None,
@@ -55,6 +58,7 @@ impl CardPlan {
             restaurants_data,
             is_active: true,
             updated_at: DateTime::now(),
+            id
         }
     }
 }

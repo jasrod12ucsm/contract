@@ -5,5 +5,6 @@ use validator::Validate;
 pub struct RenewResult{
 
     pub success: bool,
-    pub message: String
+    pub message: String,
+    pub refresh_token: Option<String>,
 }

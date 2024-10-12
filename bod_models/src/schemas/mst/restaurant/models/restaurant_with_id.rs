@@ -25,8 +25,6 @@ pub struct RestaurantWithId {
     pub address: String,
     #[serde(rename = "contentTypeIds")]
     pub content_type_ids: Vec<ObjectId>,
-    #[serde(rename = "numMesas")]
-    pub num_mesas: i32,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -37,6 +35,8 @@ pub struct RestaurantWithId {
     pub created_at: DateTime,
     #[serde(rename = "timeZone")]
     pub time_zone: String,
+    #[serde(rename = "employeeCount")]
+    pub employee_count: i32,
     #[serde(rename = "companyId")]
     pub company_id: ObjectId,
 }
@@ -52,6 +52,7 @@ impl std::fmt::Display for RestaurantWithId {
 impl RestaurantWithId {
     pub fn from_restaurant_and_id(restaurant: Restaurant, id: ObjectId) -> Self {
         Self {
+            employee_count: restaurant.employee_count,
             content_type_ids: restaurant.content_type_ids,
             company_id: restaurant.company_id,
             id,
@@ -63,7 +64,6 @@ impl RestaurantWithId {
             region: restaurant.region,
             name: restaurant.name,
             address: restaurant.address,
-            num_mesas: restaurant.num_mesas,
             is_active: restaurant.is_active,
             is_deleted: restaurant.is_deleted,
             updated_at: restaurant.updated_at,

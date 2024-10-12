@@ -1,19 +1,19 @@
-use bson::doc;
+use bson::{doc, oid::ObjectId};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
-pub struct ContentType {
+pub struct ContentTypeAttributes {
     #[serde(rename = "_id")]
-    pub id: String,
+    pub id: ObjectId,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
     pub is_deleted: bool,
 }
 
-impl ContentTypeBuilder {
+impl ContentTypeAttributesBuilder {
     fn validate(&self) -> Result<(), String> {
         if self.id.is_none() {
             return Err("Name is required".into());

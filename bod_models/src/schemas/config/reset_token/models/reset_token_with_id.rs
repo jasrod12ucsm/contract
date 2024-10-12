@@ -1,15 +1,15 @@
 use bson::{oid::ObjectId, DateTime};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize,Debug)]
+use crate::schemas::config::reset_token::reset_token::Device;
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ResetTokenWithId {
     #[serde(rename = "_id")]
     pub id: ObjectId,
-    pub token: String,
+    pub devices: Vec<Device>,
     #[serde(rename = "userId")]
     pub user_id: ObjectId,
-    #[serde(rename = "userConfigId")]
-    pub user_config_id:ObjectId,
     #[serde(rename = "authCode")]
     pub auth_code: i32,
     pub created: DateTime,

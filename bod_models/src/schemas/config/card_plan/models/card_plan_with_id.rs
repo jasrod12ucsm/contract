@@ -1,4 +1,4 @@
-use bson::{oid::ObjectId, DateTime};
+use bson::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::schemas::config::card_plan::card_plan::{Render, RestaurantsData};
@@ -6,7 +6,7 @@ use crate::schemas::config::card_plan::card_plan::{Render, RestaurantsData};
 #[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct CardPlanWithId {
     #[serde(rename = "_id")]
-    pub id: ObjectId,
+    pub id: String,
     pub render: Render,
     pub price_per_restaurant: i32,
     #[serde(rename = "restaurantsData")]
@@ -21,7 +21,7 @@ pub struct CardPlanWithId {
 
 impl CardPlanWithId {
     pub fn new(
-        id: ObjectId,
+        id: String,
         render: Render,
         price_per_restaurant: i32,
         restaurants_data: Vec<RestaurantsData>,

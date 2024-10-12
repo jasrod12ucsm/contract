@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::country_with_id::CountryWithId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder,Default)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct ShortCountry {
     pub code: String,

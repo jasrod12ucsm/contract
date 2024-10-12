@@ -14,8 +14,6 @@ use super::{identification::Identification, user_with_id::UserWithId};
 pub struct ShortUser {
     #[serde(rename="_id")]
     pub id: ObjectId,
-    #[serde(rename = "userConfigId")]
-    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     #[serde(rename = "isActive")]
@@ -30,7 +28,6 @@ impl From<UserWithId> for ShortUser {
     fn from(value: UserWithId) -> Self {
         Self {
             id: value.id,
-            user_config: value.user_config,
             identification: value.identification,
             phone: value.phone,
             is_active: value.is_active,

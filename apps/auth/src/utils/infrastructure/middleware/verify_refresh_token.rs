@@ -1,8 +1,6 @@
-use bod_models::shared::{
-    errors::{BadRequestError, ErrorGenerate},
-    jwt::claims::DefaultClaims,
-};
-use bson::oid::ObjectId;
+
+use bod_models::shared::{errors::{BadRequestError, ErrorGenerate}, jwt::claims::RenewClaims};
+use common::helpers::env::env::ENV;
 use jsonwebtoken::{DecodingKey, Validation};
 use ntex::{
     http::header,
@@ -10,23 +8,21 @@ use ntex::{
     Middleware, Service,
 };
 
-use crate::helpers::env::env::ENV;
+pub struct VerifyRefreshToken;
 
-pub struct VerifyToken;
-
-impl<S> Middleware<S> for VerifyToken {
-    type Service = VerifyTokenMiddleware<S>;
+impl<S> Middleware<S> for VerifyRefreshToken {
+    type Service = VerifyRefreshTokenMiddleware<S>;
 
     fn create(&self, service: S) -> Self::Service {
-        VerifyTokenMiddleware { service }
+        VerifyRefreshTokenMiddleware { service }
     }
 }
 
-pub struct VerifyTokenMiddleware<S> {
+pub struct VerifyRefreshTokenMiddleware<S> {
     service: S,
 }
 
-impl<S, Err> Service<web::WebRequest<Err>> for VerifyTokenMiddleware<S>
+impl<S, Err> Service<web::WebRequest<Err>> for VerifyRefreshTokenMiddleware<S>
 where
     S: Service<web::WebRequest<Err>, Response = web::WebResponse, Error = web::Error>,
     Err: web::ErrorRenderer,
@@ -54,25 +50,33 @@ where
         }
         let header = header.unwrap();
         let token = header.split(" ").collect::<Vec<&str>>()[1];
-        let secret = ENV.get_string("SECRET_KEY").unwrap().to_string();
-        let decoded_token = match jsonwebtoken::decode::<DefaultClaims>(
+        let secret = ENV.get_string("SECRET_KEY_REFRESH").unwrap().to_string();
+        let decoded_token = match jsonwebtoken::decode::<RenewClaims>(
             &token,
             &DecodingKey::from_secret(secret.to_string().as_ref()),
             &Validation::default(),
         ) {
             Ok(token) => token,
             Err(err) => {
+                let error_type = err.to_string();
+                match &err.into_kind() {
+                    jsonwebtoken::errors::ErrorKind::ExpiredSignature
+                    | jsonwebtoken::errors::ErrorKind::ImmatureSignature => {
+                        req.extensions_mut().insert::<bool>(false);
+                    }
+                    _ => todo!(),
+                }
                 return Ok(BadRequestError::render_web_response(
                     req,
-                    "authentication error".to_string(),
-                    err.to_string(),
+                    "Authentication error".to_string(),
+                    error_type,
                 ));
             }
         };
-        let uid = decoded_token.claims.user();
 
-        req.extensions_mut().insert::<ObjectId>(uid.to_owned());
-        let res = ctx.call(&self.service, req).await?;
-        Ok(res)
+        // Clonar el valor de claims antes de que la referencia se pierda
+        let os = decoded_token.claims.os();
+        req.extensions_mut().insert::<String>(os);
+        Ok(ctx.call(&self.service, req).await?)
     }
 }

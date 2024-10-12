@@ -15,7 +15,7 @@ use derive_builder::Builder;
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct RestaurantAttributes {
-    pub location:GeoPoint,
+    pub location: GeoPoint,
     #[serde(rename = "openHour")]
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
@@ -26,12 +26,14 @@ pub struct RestaurantAttributes {
     pub region: ShortRegion,
     pub name: String,
     pub address: String,
-    #[serde(rename = "numMesas")]
-    pub num_mesas: i32,
     #[serde(rename = "timeZone")]
     pub time_zone: String,
     #[serde(rename = "contentTypeIds")]
     pub content_type_ids: Vec<ObjectId>,
+    #[serde(rename = "companyId")]
+    pub company_id: ObjectId,
+    #[serde(rename = "employeeCount")]
+    pub employee_count: i32,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]
@@ -64,20 +66,23 @@ impl RestaurantAttributesBuilder {
         if self.address.is_none() {
             return Err("Address is required".into());
         }
-        if self.num_mesas.is_none() {
-            return Err("Number of tables is required".into());
-        }
         if self.time_zone.is_none() {
             return Err("Time zone is required".into());
         }
         if self.is_active.is_none() {
             return Err("no is active".into());
         }
+        if self.employee_count.is_none() {
+            return Err("no employee count".into());
+        }
         if self.is_deleted.is_none() {
             return Err("no is active".into());
         }
         if self.content_type_ids.is_none() {
             return Err("no content type ids".into());
+        }
+        if self.company_id.is_none() {
+            return Err("no company id".into());
         }
         Ok(())
     }

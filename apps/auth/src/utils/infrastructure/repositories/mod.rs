@@ -6,3 +6,6 @@ pub mod user_repository;
 pub mod user_config_repository;
 pub mod app_variables_repository;
 pub mod restaurant_repository;
+pub mod company_repository;
+pub mod card_plan_repository;
+pub mod content_type_repository;

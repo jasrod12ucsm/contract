@@ -9,10 +9,10 @@ use super::models::{atention_hour::AtentionHour, identification::Identification}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
+    #[serde(rename = "_id")]
+    pub id: ObjectId,
     pub country:ShortCountry,
     pub region:ShortRegion,
-    #[serde(rename = "userConfigId")]
-    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     pub image: Option<String>,
@@ -57,7 +57,7 @@ impl User {
             region,
             country,
             lvl:0,//client lvl
-            user_config,
+            id:user_config,
             identification,
             phone,
             image:None,
@@ -106,17 +106,6 @@ impl Schema for UserSchema {
             .database(self.get_database_name())
             .collection::<User>(self.get_collection_name());
         let mut indexes: Vec<IndexModel> = vec![];
-        let unique_user_config_index = IndexModel::builder()
-            .keys(doc! {"userConfigId":1,"isDeleted":1,"isActive":1})
-            .options(
-                IndexOptions::builder()
-                    .unique(true)
-                    .name("userConfigId".to_string())
-                    .build(),
-            )
-            .build();
-
-        indexes.push(unique_user_config_index);
         let unique_parent = IndexModel::builder()
             .keys(doc! {"parentId":1,"isDeleted":1,"isActive":1})
             .options(

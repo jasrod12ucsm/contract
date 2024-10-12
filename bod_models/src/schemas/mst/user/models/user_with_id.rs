@@ -14,8 +14,6 @@ use super::{atention_hour::AtentionHour, identification::Identification};
 pub struct UserWithId {
     #[serde(rename="_id")]
     pub id:ObjectId,
-    #[serde(rename = "userConfigId")]
-    pub user_config: ObjectId,
     pub country:ShortCountry,
     pub region:ShortRegion,
     pub identification: Identification,
@@ -61,7 +59,6 @@ impl UserWithId{
             country:user.country,
             lvl:user.lvl,
             id,
-            user_config:user.user_config,
             identification:user.identification,
             phone:user.phone,
             image:user.image,

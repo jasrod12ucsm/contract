@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::region_with_id::RegionWithId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder,Default)]
 #[builder(setter(into), build_fn(validate = "Self::validate"))]
 pub struct ShortRegion {
     pub code: String,

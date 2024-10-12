@@ -24,13 +24,13 @@ pub struct CompanyWithId {
     region: ShortRegion,
     website: Option<String>,
     #[serde(rename="employeeCount")]
-    employee_count: String,
+    employee_count: i32,
     vision: String,
     mission: String,
     #[serde(rename="quantityRestaurant")]
     pub quantity_restaurant: i32,
     #[serde(rename="cardPlan")]
-    pub card_plan: ObjectId,
+    pub card_plan: String,
     categories: Option<Vec<ObjectId>>,
     social: SocialNetworks,
     #[serde(rename="createdAt")]

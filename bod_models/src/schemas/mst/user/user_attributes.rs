@@ -10,10 +10,10 @@ use super::models::{atention_hour::AtentionHour, identification::Identification}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserAttributes {
+    #[serde(rename = "_id")]
+    pub id: ObjectId,
     pub country: ShortCountry,
     pub region: ShortRegion,
-    #[serde(rename = "userConfigId")]
-    pub user_config: ObjectId,
     pub identification: Identification,
     pub phone: String,
     pub image: Option<String>,
@@ -51,11 +51,11 @@ impl UserAttributes {
         type_provider: String,
     ) -> UserAttributes {
         UserAttributes {
+            id:user_config,
             birthdate,
             region,
             country,
             lvl: 0, //client lvl
-            user_config,
             identification,
             phone,
             image: None,

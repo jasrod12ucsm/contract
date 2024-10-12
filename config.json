@@ -8,6 +8,7 @@
     25, 92, 86, 80, 151, 7, 17, 206, 119, 46, 40, 226, 13, 103, 46, 135
   ],
   "SECRET_KEY": "Hdsadonas@fdnoSNFIOFNb3219fdujiadsfcxgDS",
+  "SECRET_KEY_REFRESH": "Hdsadonas@fdnoSNFIOFNb3219fduji",
   "DATABASE_URL": "mongodb+srv://jason:123546@cluster0.dt48hpt.mongodb.net/",
   "AUTH_DATABASE": "bod",
   "ENTERPRISE_EMAIL": "jasonrch2011@gmail.com",

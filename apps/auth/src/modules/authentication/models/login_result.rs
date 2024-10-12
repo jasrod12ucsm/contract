@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 pub struct LoginResult {
     pub user: LoginResutlUser,
     pub token: String,
-    pub refreshToken: String,
+    #[serde(rename = "refreshToken")]
+    pub refresh_token: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginResutlUser {
@@ -56,7 +57,7 @@ impl LoginResult {
     pub fn from(user: &UserWithId, user_config: ShortUserConfig,token:String,renew_token:String) -> Self {
         let user = user.to_owned();
         Self {
-            refreshToken: renew_token,
+            refresh_token: renew_token,
             user: LoginResutlUser {
                 id: user.id,
                 user_config: user_config,

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct ContentTypeWithId {
     #[serde(rename="_id")]
     pub id: ObjectId,
+    pub name: String,
     #[serde(rename = "isActive")]
     pub is_active: bool,
     #[serde(rename = "isDeleted")]

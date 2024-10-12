@@ -7,11 +7,9 @@ use crate::shared::{index_functions::IndexFunctions, schema::{BaseColleccionName
 
 #[derive(Serialize, Deserialize)]
 pub struct ResetToken {
-    pub token: String,
+    pub devices: Vec<Device>,
     #[serde(rename = "userId")]
     pub user_id: ObjectId,
-    #[serde(rename = "userConfigId")]
-    pub user_config_id:ObjectId,
     pub created: DateTime,
     #[serde(rename = "authCode")]
     pub auth_code:i32,
@@ -22,10 +20,11 @@ pub struct ResetToken {
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Debug)]
 pub struct Device{
-    os:String,
-    mac:String,
+    pub os:String,
+    pub mac:String,
+    pub token:String
 }
 
 
@@ -38,11 +37,16 @@ pub struct PartialResetToken {
     pub updated_at: DateTime,
 }
 impl ResetToken {
-    pub fn new(token: String, user_id: ObjectId,auth_code:i32,user_config_id:ObjectId) -> Self {
+    pub fn new(token: String, user_id: ObjectId,auth_code:i32,mac:String, os:String) -> Self {
         Self {
-            user_config_id,
             auth_code,
-            token,
+            devices: vec![
+                Device{
+                    os:mac.to_string(),
+                    mac:os.to_string(),
+                    token:token.to_string()
+                }
+            ],
             user_id,
             created: DateTime::now(),
             is_deleted: false,
@@ -89,17 +93,7 @@ impl Schema for ResetTokenSchema {
             )
             .build();
         //crea uno para user_config_id
-        let user_config_id_index = IndexModel::builder()
-            .keys(doc! {"userConfigId":1})
-            .options(
-                IndexOptions::builder()
-                    .unique(true)
-                    .name("userConfigId".to_string())
-                    .build(),
-            )
-            .build();
         indexes.push(user_id_index);
-        indexes.push(user_config_id_index);
         let _ = IndexFunctions::delete_existing_indexes(&collection, &mut indexes).await;
         let option: Option<CreateIndexesResult> = None;
         if indexes.len() == 0 {
