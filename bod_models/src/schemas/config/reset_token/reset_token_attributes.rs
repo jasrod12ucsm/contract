@@ -21,15 +21,10 @@ pub struct ResetTokenAttributes {
 
 
 impl ResetTokenAttributes {
-    pub fn new(token: String, user_id: ObjectId,auth_code:i32,os:String,mac:String) -> Self {
+    pub fn new( user_id: ObjectId,auth_code:i32) -> Self {
         Self {
             auth_code,
             devices: vec![
-                Device{
-                    os:os.to_string(),
-                    mac:mac.to_string(),
-                    token:token.to_string()
-                }
             ],
             user_id,
             created: DateTime::now(),

@@ -82,8 +82,6 @@ pub async fn singup_client(
     repo: State<PublicRepository>,
 ) -> Result<JsonAdvanced<UserId>, Either<UserConfigError, UserError>> {
     let RegisterUserClientDto {
-        os,
-        mac,
         names,
         surnames,
         email,
@@ -271,17 +269,9 @@ pub async fn singup_client(
             let _ = session.abort_transaction();
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?;
-    let token = generate_refresh_jwt(os.as_str(), user_inserted.id)
-        .map_err(|_| UserConfigError::CreateUserError("error generating token"));
-    if token.is_err() {
-        return Err(Either::Left(UserConfigError::CreateUserError(
-            "cannot generate token",
-        )));
-    }
     //2. guardar token en la tabla token
-    let copy_token = token.as_ref().unwrap().as_str();
     let reset_token_to_insert =
-        ResetTokenAttributes::new(copy_token.to_string(), user_inserted.id, code, os, mac);
+        ResetTokenAttributes::new(user_inserted.id, code);
     let doc_insert_token = doc! {
         "$set":bson::to_bson(&reset_token_to_insert).unwrap()
     };
