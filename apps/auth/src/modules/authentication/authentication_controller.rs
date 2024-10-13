@@ -15,15 +15,12 @@ use crate::{
         jwt::generate::{generate_jwt, generate_refresh_jwt},
         repositories::{
             app_variables_repository::AppVariablesRepository,
-            card_plan_repository::CardPlanRepository,
-            company_repository::CompanyRepository,
+            card_plan_repository::CardPlanRepository, company_repository::CompanyRepository,
             country_repository::CountryRepository,
             email_template_repository::EmailTemplateRepository,
-            region_repository::RegionRepository,
-            reset_token_repository::ResetTokenRepository,
+            region_repository::RegionRepository, reset_token_repository::ResetTokenRepository,
             restaurant_repository::RestaurantRepository,
-            user_config_repository::UserConfigRepository,
-            user_repository::UserRepository,
+            user_config_repository::UserConfigRepository, user_repository::UserRepository,
         },
     },
     FINDER,
@@ -36,7 +33,8 @@ use bod_models::{
                 reset_token_attributes::ResetTokenAttributes, reset_token_errors::ResetTokenError,
             },
             user_config::{
-                models::short_user_config::ShortUserConfig, user_config_attributes::UserConfigAttributes, user_config_errors::UserConfigError
+                models::short_user_config::ShortUserConfig,
+                user_config_attributes::UserConfigAttributes, user_config_errors::UserConfigError,
             },
         },
         location::{
@@ -65,7 +63,10 @@ use common::{
     },
 };
 
-use mongodb::{bson::doc, options::SelectionCriteria};
+use mongodb::{
+    bson::doc,
+    options::{ReadConcern, SelectionCriteria},
+};
 use ntex::{
     util::Either,
     web::{
@@ -269,8 +270,7 @@ pub async fn singup_client(
             Either::Right(UserError::CreateUserError("error inserting user"))
         })?;
     //2. guardar token en la tabla token
-    let reset_token_to_insert =
-        ResetTokenAttributes::new(user_inserted.id, code);
+    let reset_token_to_insert = ResetTokenAttributes::new(user_inserted.id, code);
     let doc_insert_token = doc! {
         "$set":bson::to_bson(&reset_token_to_insert).unwrap()
     };
@@ -323,8 +323,12 @@ pub async fn singup_client(
     let card_plan = card_ṕlan_repository
         .find_one(doc! {"_id":card_plan,"noDeleted":true})
         .session(&mut session)
+        .selection_criteria(SelectionCriteria::ReadPreference(
+            mongodb::options::ReadPreference::Primary,
+        ))
         .await
-        .map_err(|_| {
+        .map_err(|err| {
+            println!("{:?}", err);
             let _ = session.abort_transaction();
             Either::Left(UserConfigError::CreateUserError("error finding card plan"))
         })?
@@ -740,11 +744,11 @@ pub async fn login_by_token(
         .get_repository::<UserRepository>()
         .await
         .map_err(|_| UserConfigError::LoginUserError("Internal server error"))?;
-    let user_config_repository=repo
+    let user_config_repository = repo
         .get_repository::<UserConfigRepository>()
         .await
         .map_err(|_| UserConfigError::LoginUserError("Internal server error"))?;
-    let user_config=user_config_repository
+    let user_config = user_config_repository
         .find_one(doc! {"_id":user_id})
         .await
         .map_err(|_| UserConfigError::LoginUserError("User not found"))?
