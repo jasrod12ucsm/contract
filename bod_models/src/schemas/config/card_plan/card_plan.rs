@@ -22,6 +22,7 @@ pub struct Render {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestaurantsData {
+    #[serde(rename = "totalPrice")]
     pub total_price: i32,
     pub plan_token: String,
     #[serde(rename = "numRestaurants")]
