@@ -27,8 +27,6 @@ pub struct Restaurant {
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
     pub close_hour: AtentionHour,
-    #[serde(rename = "efectiveArea")]
-    pub efective_area: f64,
     pub country: ShortCountry,
     pub region: ShortRegion,
     pub name: String,
@@ -61,9 +59,6 @@ impl RestaurantBuilder {
         }
         if self.close_hour.is_none() {
             return Err("Close hour is required".into());
-        }
-        if self.efective_area.is_none() {
-            return Err("Efective area is required".into());
         }
         if self.country.is_none() {
             return Err("Country is required".into());
@@ -117,9 +112,6 @@ impl RestaurantBuilder {
                 .wednesday(close_hour.wednesday.clone())
                 .build_partial_update();
             doc.insert("closeHour", close_hour);
-        }
-        if let Some(efective_area) = &self.efective_area {
-            doc.insert("efectiveArea", efective_area);
         }
         if let Some(country) = &self.country {
             let country = ShortCountryBuilder::default()
@@ -195,7 +187,6 @@ impl Restaurant {
             location: GeoPoint::new(longitude, latitude),
             open_hour,
             close_hour,
-            efective_area,
             country,
             region,
             name,

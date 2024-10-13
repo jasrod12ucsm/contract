@@ -20,8 +20,6 @@ pub struct RestaurantAttributes {
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
     pub close_hour: AtentionHour,
-    #[serde(rename = "efectiveArea")]
-    pub efective_area: f64,
     pub country: ShortCountry,
     pub region: ShortRegion,
     pub name: String,
@@ -50,9 +48,6 @@ impl RestaurantAttributesBuilder {
         }
         if self.close_hour.is_none() {
             return Err("Close hour is required".into());
-        }
-        if self.efective_area.is_none() {
-            return Err("Efective area is required".into());
         }
         if self.country.is_none() {
             return Err("Country is required".into());

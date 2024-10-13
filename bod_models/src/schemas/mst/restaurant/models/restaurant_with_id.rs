@@ -17,8 +17,6 @@ pub struct RestaurantWithId {
     pub open_hour: AtentionHour,
     #[serde(rename = "closeHour")]
     pub close_hour: AtentionHour,
-    #[serde(rename = "efectiveArea")]
-    pub efective_area: f64,
     pub country: ShortCountry,
     pub region: ShortRegion,
     pub name: String,
@@ -59,7 +57,6 @@ impl RestaurantWithId {
             location:restaurant.location,
             open_hour: restaurant.open_hour,
             close_hour: restaurant.close_hour,
-            efective_area: restaurant.efective_area,
             country: restaurant.country,
             region: restaurant.region,
             name: restaurant.name,

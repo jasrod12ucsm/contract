@@ -95,7 +95,6 @@ pub async fn singup_client(
         birthdate,
         longitude,
         latitude,
-        efective_area,
         card_plan,
     } = register_dto.into_inner();
     //iniciamos repositorios
@@ -301,7 +300,6 @@ pub async fn singup_client(
         .region::<ShortRegion>(region.clone().into())
         .name(name.clone())
         .location(GeoPoint::new(longitude, latitude))
-        .efective_area(efective_area)
         .time_zone(timezone)
         .is_active(true)
         .is_deleted(false)
