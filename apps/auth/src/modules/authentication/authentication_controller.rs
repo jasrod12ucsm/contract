@@ -28,7 +28,7 @@ use crate::{
 use bod_models::{
     schemas::{
         config::{
-            company::company_attributes::CompanyAttributesBuilder,
+            company::{company::{Sensible, SocialNetworks}, company_attributes::CompanyAttributesBuilder},
             reset_token::{
                 reset_token_attributes::ResetTokenAttributes, reset_token_errors::ResetTokenError,
             },
@@ -333,25 +333,45 @@ pub async fn singup_client(
             Either::Left(UserConfigError::CreateUserError("error finding card plan"))
         })?
         .ok_or_else(|| Either::Left(UserConfigError::CreateUserError("card plan not found")))?;
+    //TODO actualizacion de logo y todo con null
     let company_insertion_data = CompanyAttributesBuilder::default()
         .id(user_inserted.id)
         .country::<ShortCountry>(country.into())
         .region::<ShortRegion>(region.into())
         .employee_count(0)
+        .sensible(Sensible::default())
+        .logo("".to_string())
+        .large_logo("")
+        .small_logo("")
+        .name("".to_string())
+        .website(None)
+        .display_name("")
+        .mission("".to_string()) 
+        .vision("".to_string())
+        .categories(None)
+        .social(SocialNetworks::default())
         .card_plan(card_plan.id)
+        .emails(vec![])
+        .quantity_restaurant(1)
         .is_active(true)
         .is_deleted(false)
         .build()
-        .map_err(|_| Either::Left(UserConfigError::CreateUserError("error creating company")))?
+        .map_err(|err| {
+            println!("{}",err);
+            Either::Left(UserConfigError::CreateUserError("error creating company"))})?
         .to_bson()
-        .map_err(|_| Either::Left(UserConfigError::CreateUserError("error creating company")))?;
+        .map_err(|err| {
+            println!("{}",err);
+            Either::Left(UserConfigError::CreateUserError("error creating company"))
+        })?;
     let _ = company_repository
         .find_one_and_update(doc! {"_id":user_config_inserted.id}, company_insertion_data)
         .session(&mut session)
         .upsert(true)
         .await
-        .map_err(|_| {
+        .map_err(|err| {
             let _ = session.abort_transaction();
+            println!("{}",err);
             Either::Left(UserConfigError::CreateUserError(
                 "error on company insertion",
             ))

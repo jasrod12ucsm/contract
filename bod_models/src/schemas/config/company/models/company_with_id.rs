@@ -27,7 +27,7 @@ pub struct CompanyWithId {
     employee_count: i32,
     vision: String,
     mission: String,
-    #[serde(rename="quantityRestaurant")]
+    #[serde(rename="quantityAddress")]
     pub quantity_restaurant: i32,
     #[serde(rename="cardPlan")]
     pub card_plan: String,

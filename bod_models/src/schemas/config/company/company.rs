@@ -39,7 +39,7 @@ pub struct Company {
     employee_count: i32,
     vision: String,
     mission: String,
-    #[serde(rename = "quantityRestaurant")]
+    #[serde(rename = "quantityAddress")]
     quantity_restaurant: i32,
     #[serde(rename = "cardPlan")]
     card_plan: String,
@@ -63,6 +63,8 @@ pub struct Sensible {
     #[serde(rename = "clientToken")]
     pub client_token: String,
 }
+
+
 
 #[derive(Serialize, Deserialize, Debug, Clone,Default)]
 pub struct SensibleCard {

@@ -2,7 +2,12 @@ use bson::{doc, oid::ObjectId, DateTime};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::location::{country::models::short_country::ShortCountry, region::models::short_region::ShortRegion}, shared::bson::to_bson::ToBson};
+use crate::{
+    schemas::location::{
+        country::models::short_country::ShortCountry, region::models::short_region::ShortRegion,
+    },
+    shared::bson::to_bson::ToBson,
+};
 
 use super::company::{Sensible, SocialNetworks};
 
@@ -18,27 +23,25 @@ pub struct CompanyAttributes {
     #[serde(rename = "smallLogo")]
     small_logo: String,
     emails: Vec<String>,
+    #[serde(rename = "quantityAddress")]
+    quantity_restaurant: i32,
     name: String,
     #[serde(rename = "dispĺayName")]
     display_name: String,
     country: ShortCountry,
     region: ShortRegion,
     website: Option<String>,
-    #[serde(rename="employeeCount")]
+    #[serde(rename = "employeeCount")]
     employee_count: i32,
     vision: String,
     mission: String,
-    #[serde(rename="cardPlan")]
+    #[serde(rename = "cardPlan")]
     card_plan: String,
     categories: Option<Vec<ObjectId>>,
     social: SocialNetworks,
-    #[serde(rename="createdAt")]
-    created_at: DateTime,
-    #[serde(rename="updatedAt")]
-    updated_at: DateTime,
-    #[serde(rename="isDeleted")]
+    #[serde(rename = "isDeleted")]
     is_deleted: bool,
-    #[serde(rename="isActive")]
+    #[serde(rename = "isActive")]
     is_active: bool,
 }
 
@@ -68,7 +71,6 @@ impl CompanyAttributesBuilder {
         Ok(())
     }
 }
-
 
 impl ToBson for CompanyAttributes {
     fn to_bson(&self) -> Result<bson::Document, bson::ser::Error> {
