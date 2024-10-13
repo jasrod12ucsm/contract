@@ -28,7 +28,10 @@ use crate::{
 use bod_models::{
     schemas::{
         config::{
-            company::{company::{Sensible, SocialNetworks}, company_attributes::CompanyAttributesBuilder},
+            company::{
+                company::{Sensible, SocialNetworks},
+                company_attributes::CompanyAttributesBuilder,
+            },
             reset_token::{
                 reset_token_attributes::ResetTokenAttributes, reset_token_errors::ResetTokenError,
             },
@@ -49,12 +52,13 @@ use bod_models::{
             },
         },
     },
-    shared::{bson::to_bson::ToBson, geo_point::GeoPoint},
+    shared::{bson::to_bson::ToBson, geo_point::GeoPoint, jwt::claims::RenewClaims},
 };
 use bson::{oid::ObjectId, DateTime};
 use common::{
     helpers::{
-        password::password_functions::PasswordFunctions, smtp::smtp_functions::SmtpFunctions,
+        env::env::ENV, password::password_functions::PasswordFunctions,
+        smtp::smtp_functions::SmtpFunctions,
     },
     public::models::path::IdPath,
     utils::ntex_private::{
@@ -63,10 +67,8 @@ use common::{
     },
 };
 
-use mongodb::{
-    bson::doc,
-    options::SelectionCriteria,
-};
+use jsonwebtoken::{decode, DecodingKey, Validation};
+use mongodb::{bson::doc, options::SelectionCriteria};
 use ntex::{
     util::Either,
     web::{
@@ -253,10 +255,7 @@ pub async fn singup_client(
     println!("{:?}", doc_insert_user);
     //insertamos usuario
     let user_inserted = user_repository
-        .find_one_and_update(
-            doc! {"_id":user_config_with_id.id},
-            doc_insert_user,
-        )
+        .find_one_and_update(doc! {"_id":user_config_with_id.id}, doc_insert_user)
         .session(&mut session)
         .upsert(true)
         .await
@@ -347,7 +346,7 @@ pub async fn singup_client(
         .name(None)
         .website(None)
         .display_name(None)
-        .mission(None) 
+        .mission(None)
         .vision(None)
         .categories(None)
         .social(SocialNetworks::default())
@@ -358,11 +357,12 @@ pub async fn singup_client(
         .is_deleted(false)
         .build()
         .map_err(|err| {
-            println!("{}",err);
-            Either::Left(UserConfigError::CreateUserError("error creating company"))})?
+            println!("{}", err);
+            Either::Left(UserConfigError::CreateUserError("error creating company"))
+        })?
         .to_bson()
         .map_err(|err| {
-            println!("{}",err);
+            println!("{}", err);
             Either::Left(UserConfigError::CreateUserError("error creating company"))
         })?;
     let _ = company_repository
@@ -372,7 +372,7 @@ pub async fn singup_client(
         .await
         .map_err(|err| {
             let _ = session.abort_transaction();
-            println!("{}",err);
+            println!("{}", err);
             Either::Left(UserConfigError::CreateUserError(
                 "error on company insertion",
             ))
@@ -640,7 +640,6 @@ pub async fn login_client(
         password,
         mac,
     } = login_dto.into_inner();
-
     // Crear repos
     let user_config_repository: UserConfigRepository = repo
         .get_repository::<UserConfigRepository>()
@@ -682,7 +681,7 @@ pub async fn login_client(
 
     // Buscar usuario
     let user = user_repository
-        .find_one(doc! {"userConfig._id": user_config.id})
+        .find_one(doc! {"_id": user_config.id})
         .await
         .map_err(|_| UserConfigError::LoginUserError("Error al buscar el usuario"))?
         .ok_or(UserConfigError::LoginUserError("No se encontró el usuario"))?;
@@ -691,11 +690,8 @@ pub async fn login_client(
     let new_token = generate_jwt(user.id)
         .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
 
-    let reset_token = generate_refresh_jwt(os.as_str(), user.id)
-        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
-
     let token = reset_token_repository
-        .find_one(doc! {"userId": user.id})
+        .find_one(doc! {"userId": user.id,"noActive":true})
         .await
         .map_err(|_| UserConfigError::LoginUserError("internal error"))?
         .ok_or_else(|| UserConfigError::LoginUserError("no token found"))?;
@@ -703,7 +699,8 @@ pub async fn login_client(
     // Verificar token
     let num_devices = token.devices.len();
     let mac_in_devices = token.devices.iter().find(|device| device.mac == mac);
-
+    let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
     if mac_in_devices.is_none() {
         if num_devices < 2 {
             let update_doc = doc! {
@@ -715,38 +712,50 @@ pub async fn login_client(
                     }
                 }
             };
-            reset_token_repository
-                .update_one(doc! {"userId": user.id}, update_doc)
+            let result = reset_token_repository
+                .update_one(doc! {"userId": user.id,"noActive":true}, update_doc)
                 .await
                 .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+            if result.matched_count < 1 {
+                return Err(UserConfigError::LoginUserError("no token found"));
+            }
+            let short_user_config: ShortUserConfig = user_config.into();
+            let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
+
+            Ok(JsonAdvanced(login_result))
         } else {
             return Err(UserConfigError::LoginUserError("no more devices allowed"));
         }
     } else {
-        let mac_in_devices = mac_in_devices.unwrap().mac.as_str();
+        let mac_by_device = mac_in_devices.unwrap().mac.as_str();
+        //actualizar refresh token
         let filter = doc! {
-            "userId": user.id,
+            "userId": user.id,"noActive":true
         };
-
+        let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+            .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         // Documento de actualización con array filter
         let update_doc = doc! {
             "$set": {
-                "devices.$[device].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
-                "devices.$[device].os": os,
+                "devices.$[d].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
+                "devices.$[d].os": os,
             }
         };
-
-        reset_token_repository
+        let array_filters = vec![doc! { "d.mac": { "$eq": mac_by_device } }];
+        let result = reset_token_repository
             .update_one(filter, update_doc)
-            .array_filters(vec![doc! {"device.mac": mac_in_devices}])
+            .array_filters(array_filters)
             .await
             .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+        if result.matched_count < 1 {
+            return Err(UserConfigError::LoginUserError("no token found"));
+        }
+        let short_user_config: ShortUserConfig = user_config.into();
+        let login_result =
+            LoginResult::from(&user, short_user_config, new_token, reset_token.to_string());
+
+        return Ok(JsonAdvanced(login_result));
     }
-
-    let short_user_config: ShortUserConfig = user_config.into();
-    let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
-
-    Ok(JsonAdvanced(login_result))
 }
 #[web::post("login/client/token")]
 pub async fn login_by_token(
@@ -792,9 +801,6 @@ pub async fn login_by_token(
     let new_token = generate_jwt(user.id)
         .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
 
-    let reset_token = generate_refresh_jwt(os.as_str(), user.id)
-        .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
-
     let token = reset_token_repository
         .find_one(doc! {"userId": user.id})
         .await
@@ -806,6 +812,8 @@ pub async fn login_by_token(
     let mac_in_devices = token.devices.iter().find(|device| device.mac == mac);
 
     if mac_in_devices.is_none() {
+        let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+            .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         if num_devices < 2 {
             let update_doc = doc! {
                 "$push": {
@@ -820,34 +828,43 @@ pub async fn login_by_token(
                 .update_one(doc! {"userId": user.id}, update_doc)
                 .await
                 .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+            let short_user_config: ShortUserConfig = user_config.into();
+            let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
+
+            Ok(JsonAdvanced(login_result))
         } else {
             return Err(UserConfigError::LoginUserError("no more devices allowed"));
         }
     } else {
-        let mac_in_devices = mac_in_devices.unwrap().mac.as_str();
+        let mac_by_device = mac_in_devices.unwrap().mac.as_str();
+        //actualizar refresh token
         let filter = doc! {
-            "userId": user.id,
+            "userId": user.id,"noActive":true
         };
-
+        let reset_token = generate_refresh_jwt(os.as_str(), user.id)
+            .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         // Documento de actualización con array filter
         let update_doc = doc! {
             "$set": {
-                "devices.$[device].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
-                "devices.$[device].os": os,
+                "devices.$[d].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
+                "devices.$[d].os": os,
             }
         };
-
-        reset_token_repository
+        let array_filters = vec![doc! { "d.mac": { "$eq": mac_by_device } }];
+        let result = reset_token_repository
             .update_one(filter, update_doc)
-            .array_filters(vec![doc! {"device.mac": mac_in_devices}])
+            .array_filters(array_filters)
             .await
             .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
+        if result.matched_count < 1 {
+            return Err(UserConfigError::LoginUserError("no token found"));
+        }
+        let short_user_config: ShortUserConfig = user_config.into();
+        let login_result =
+            LoginResult::from(&user, short_user_config, new_token, reset_token.to_string());
+
+        return Ok(JsonAdvanced(login_result));
     }
-
-    let short_user_config: ShortUserConfig = user_config.into();
-    let login_result = LoginResult::from(&user, short_user_config, new_token, reset_token);
-
-    Ok(JsonAdvanced(login_result))
 }
 
 #[web::post("renew/{id}")]
