@@ -35,6 +35,7 @@ pub struct CardPlan {
     #[serde(rename = "_id")]
     pub id:String,//name
     pub render: Render,
+    #[serde(rename = "pricePerRestaurant")]
     pub price_per_restaurant: i32,
     #[serde(rename = "restaurantsData")]
     pub restaurants_data: Vec<RestaurantsData>,
