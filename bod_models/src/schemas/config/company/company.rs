@@ -22,23 +22,23 @@ use crate::{
 pub struct Company {
     #[serde(rename = "_id")]
     id: ObjectId,
-    sensible: Sensible,
-    logo: String,
+    sensible: Option<Sensible>,
+    logo: Option<String>,
     #[serde(rename = "largeLogo")]
-    large_logo: String,
+    large_logo: Option<String>,
     #[serde(rename = "smallLogo")]
-    small_logo: String,
+    small_logo: Option<String>,
     emails: Vec<String>,
-    name: String,
+    name: Option<String>,
     #[serde(rename = "dispĺayName")]
-    display_name: String,
+    display_name: Option<String>,
     country: ShortCountry,
     region: ShortRegion,
     website: Option<String>,
     #[serde(rename = "employeeCount")]
     employee_count: i32,
-    vision: String,
-    mission: String,
+    vision: Option<String>,
+    mission: Option<String>,
     #[serde(rename = "quantityAddress")]
     quantity_restaurant: i32,
     #[serde(rename = "cardPlan")]

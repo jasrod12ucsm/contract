@@ -1,4 +1,4 @@
-use bson::{doc, oid::ObjectId, DateTime};
+use bson::{doc, oid::ObjectId};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
@@ -16,30 +16,29 @@ use super::company::{Sensible, SocialNetworks};
 pub struct CompanyAttributes {
     #[serde(rename = "_id")]
     id: ObjectId,
-    sensible: Sensible,
-    logo: String,
+    sensible: Option<Sensible>,
+    logo: Option<String>,
     #[serde(rename = "largeLogo")]
-    large_logo: String,
+    large_logo: Option<String>,
     #[serde(rename = "smallLogo")]
-    small_logo: String,
+    small_logo: Option<String>,
     emails: Vec<String>,
-    #[serde(rename = "quantityAddress")]
-    quantity_restaurant: i32,
-    name: String,
+    name: Option<String>,
     #[serde(rename = "dispĺayName")]
-    display_name: String,
+    display_name: Option<String>,
     country: ShortCountry,
     region: ShortRegion,
     website: Option<String>,
     #[serde(rename = "employeeCount")]
     employee_count: i32,
-    vision: String,
-    mission: String,
+    vision: Option<String>,
+    mission: Option<String>,
+    #[serde(rename = "quantityAddress")]
+    quantity_restaurant: i32,
     #[serde(rename = "cardPlan")]
     card_plan: String,
     categories: Option<Vec<ObjectId>>,
     social: SocialNetworks,
-    #[serde(rename = "isDeleted")]
     is_deleted: bool,
     #[serde(rename = "isActive")]
     is_active: bool,

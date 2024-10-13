@@ -10,35 +10,35 @@ use crate::schemas::{
 pub struct CompanyWithId {
     #[serde(rename = "_id")]
     pub id: ObjectId,
-    pub sensible:Sensible,
-    pub logo: String,
+    pub sensible: Option<Sensible>,
+    logo: Option<String>,
     #[serde(rename = "largeLogo")]
-    pub large_logo: String,
+    large_logo: Option<String>,
     #[serde(rename = "smallLogo")]
-    small_logo: String,
+    small_logo: Option<String>,
     emails: Vec<String>,
-    name: String,
+    name: Option<String>,
     #[serde(rename = "dispĺayName")]
-    display_name: String,
+    display_name: Option<String>,
     country: ShortCountry,
     region: ShortRegion,
     website: Option<String>,
-    #[serde(rename="employeeCount")]
+    #[serde(rename = "employeeCount")]
     employee_count: i32,
-    vision: String,
-    mission: String,
-    #[serde(rename="quantityAddress")]
+    vision: Option<String>,
+    mission: Option<String>,
+    #[serde(rename = "quantityAddress")]
     pub quantity_restaurant: i32,
-    #[serde(rename="cardPlan")]
+    #[serde(rename = "cardPlan")]
     pub card_plan: String,
     categories: Option<Vec<ObjectId>>,
     social: SocialNetworks,
-    #[serde(rename="createdAt")]
+    #[serde(rename = "createdAt")]
     created_at: DateTime,
-    #[serde(rename="updatedAt")]
+    #[serde(rename = "updatedAt")]
     updated_at: DateTime,
-    #[serde(rename="isDeleted")]
+    #[serde(rename = "isDeleted")]
     is_deleted: bool,
-    #[serde(rename="isActive")]
+    #[serde(rename = "isActive")]
     is_active: bool,
 }

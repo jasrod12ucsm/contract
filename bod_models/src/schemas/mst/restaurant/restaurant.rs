@@ -169,7 +169,6 @@ impl Restaurant {
         latitude: f64,
         open_hour: AtentionHour,
         close_hour: AtentionHour,
-        efective_area: f64,
         country: ShortCountry,
         region: ShortRegion,
         name: String,

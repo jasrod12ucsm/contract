@@ -65,7 +65,7 @@ use common::{
 
 use mongodb::{
     bson::doc,
-    options::{ReadConcern, SelectionCriteria},
+    options::SelectionCriteria,
 };
 use ntex::{
     util::Either,
@@ -250,10 +250,11 @@ pub async fn singup_client(
     let doc_insert_user = doc! {
         "$set":bson::to_bson(&user).unwrap()
     };
+    println!("{:?}", doc_insert_user);
     //insertamos usuario
     let user_inserted = user_repository
         .find_one_and_update(
-            doc! {"userConfig._id":user_config_with_id.id},
+            doc! {"_id":user_config_with_id.id},
             doc_insert_user,
         )
         .session(&mut session)
@@ -340,14 +341,14 @@ pub async fn singup_client(
         .region::<ShortRegion>(region.into())
         .employee_count(0)
         .sensible(Sensible::default())
-        .logo("".to_string())
-        .large_logo("")
-        .small_logo("")
-        .name("".to_string())
+        .logo(None)
+        .large_logo(None)
+        .small_logo(None)
+        .name(None)
         .website(None)
-        .display_name("")
-        .mission("".to_string()) 
-        .vision("".to_string())
+        .display_name(None)
+        .mission(None) 
+        .vision(None)
         .categories(None)
         .social(SocialNetworks::default())
         .card_plan(card_plan.id)

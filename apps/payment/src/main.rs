@@ -18,7 +18,7 @@ async fn main() -> std::io::Result<()> {
         .map_err(|_| panic!())
         .unwrap();
     //*creamos los indices y schemas necesarios al ejecutar la app se cargaran otra vez
-    let client = public_repository.get_client().unwrap();
+    let _client = public_repository.get_client().unwrap();
 
     let ipv4 = IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
