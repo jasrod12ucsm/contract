@@ -24,6 +24,7 @@ pub struct Render {
 pub struct RestaurantsData {
     #[serde(rename = "totalPrice")]
     pub total_price: i32,
+    #[serde(rename = "planToken")]
     pub plan_token: String,
     #[serde(rename = "numRestaurants")]
     pub num_restaurants: i32,
