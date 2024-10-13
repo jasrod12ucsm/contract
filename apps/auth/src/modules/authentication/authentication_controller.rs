@@ -825,8 +825,7 @@ pub async fn login_by_token(
     Ok(JsonAdvanced(login_result))
 }
 
-//TODO renovar con refresh token no guardar token normal, cambialo en un dia
-#[web::post("renew/{}")]
+#[web::post("renew/{id}")]
 pub async fn renew(
     req: HttpRequest,
     os: JsonAdvanced<RenewTokenDto>,
