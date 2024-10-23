@@ -1,5 +1,5 @@
 use bod_models::{
-    schemas::config::content_type::{content_type::ContentType, models::cnf_content_type_with_id::ContentTypeWithId}, shared::schema::BaseColleccionNames
+    schemas::config::content_type::content_type::{ContentType, ContentTypeWithId}, shared::schema::BaseColleccionNames
 };
 use common::utils::ntex_private::repository::public_repository::{PublicRepository, Repository, SetPublicRepository};
 use lazy_static::lazy_static;

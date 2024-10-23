@@ -13,7 +13,7 @@ use mongodb::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::helpers::env::env::ENV;
+use crate::{helpers::env::env::ENV, utils::database::{domain::{filter_query::FilterQueryTrait, update_query::UpdateQueryTrait}, infrastructure::database_library::{FindQuery, UpdateQuery}}};
 #[derive(Debug, Clone)]
 pub struct PublicRepository {
     client: Option<Client>,
@@ -92,11 +92,10 @@ pub trait AbstractRepository<T: Serialize + Send + Sync, U: Serialize + Send + S
     ) -> FindOneAndUpdate<U>; // Cambiado a Result<Option<U>, Error>
     fn update_one(
         &self,
-        filter: mongodb::bson::Document,
-        update: mongodb::bson::Document,
+        update_query:UpdateQuery
     ) -> Update;
     fn get_all(&self) -> mongodb::action::Find<'_, U>;
-    fn find(&self, filter: mongodb::bson::Document) -> mongodb::action::Find<'_, U>;
+    fn find(&self, filter: FindQuery) -> mongodb::action::Find<'_, U>;
     fn find_generic<'a, J>(
         &'a self,
         filter: mongodb::bson::Document,
@@ -206,9 +205,10 @@ where
 
     fn update_one(
         &self,
-        mut filter: mongodb::bson::Document,
-        mut update: mongodb::bson::Document,
+        update_query: UpdateQuery,
     ) -> Update {
+        let mut filter =update_query.create_filter_doc();
+        let mut update=update_query.create_update_doc();
         let has_is_deleted = filter.contains_key("isDeleted");
         let has_is_active = filter.contains_key("isActive");
         let has_no_deleted = filter.contains_key("noDeleted");
@@ -254,7 +254,8 @@ where
         document
     }
 
-    fn find(&self, mut filter: mongodb::bson::Document) -> mongodb::action::Find<'_, U> {
+    fn find(&self,filter: FindQuery) -> mongodb::action::Find<'_, U> {
+        let mut filter=filter.create_filter_doc();
         // Check if "isDeleted" or "isActive" are present in the filter
         let has_is_deleted = filter.contains_key("isDeleted");
         let has_is_active = filter.contains_key("isActive");

@@ -21,5 +21,7 @@ reqwest = { version = "0.12.5", features = ["blocking", "json"] }
 tzf-rs = "0.4.9"
 common={path = "../../common"}
 bod_models={path = "../../bod_models"}
+compilation_procedure={path = "../../compilation_procedure"}
 ntex-cors = "2.0.0"
+
 

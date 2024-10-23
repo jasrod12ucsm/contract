@@ -17,5 +17,6 @@ mime = "0.3.17"
 bson="2.11.0"
 derive_more = "0.99.17"
 derive_builder = "0.20.1"
+compilation_procedure={path = "../compilation_procedure"}
 
 

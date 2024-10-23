@@ -6,10 +6,10 @@ use bson::{doc, oid::ObjectId};
 use common::{
     helpers::env::env::ENV,
     public::models::path::IdPath,
-    utils::ntex_private::{
+    utils::{database::{domain::{database_query::DatabaseQueryTrait, filter_query::FilterQueryTrait}, infrastructure::database_library::DatabaseQuery}, ntex_private::{
         extractors::json::JsonAdvanced,
         repository::public_repository::{AbstractRepository, PublicRepository},
-    },
+    }},
 };
 use futures::StreamExt;
 use ntex::web::{
@@ -18,13 +18,12 @@ use ntex::web::{
 };
 
 use crate::{
-    public::models::{rest_country::RestCountries, secret_path::SecretPath},
-    utils::{
+    modules::loc_country::models::get_country_by_region_id::filter_country_by_region_id::FilterGetCountryByRegionId, public::models::{rest_country::RestCountries, secret_path::SecretPath}, utils::{
         country_repository::CountryRepository, domain::rest_countries_datasource_trait::RestCountriesDataSourceTrait, infraestructure::{
             datasource::rest_countries_data_source::RestCountriesDataSource,
             repositories::rest_countries_repository::RestCountriesRepository,
         }, region_repository::RegionRepository, user_repository::UserRepository
-    },
+    }
 };
 
 //*este solo lo uso para crear un country */
@@ -168,7 +167,7 @@ pub async fn get_all_countries(
             CountryError::GetCountryError("internal error, comunicate with programmers")
         })?;
     let mut countries = country_repository
-        .find(doc! {})
+        .find(DatabaseQuery::find())
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?;
     let mut countries_vector = vec![];
@@ -213,7 +212,7 @@ pub async fn get_country_by_region_id(
     //busca paises por region
     
     let mut countries = country_repository
-        .find(doc! {"code":region.country_id})
+        .find(DatabaseQuery::find().filter(FilterGetCountryByRegionId { code: region.code }))
         .await
         .map_err(|_| CountryError::GetCountryError("internal data failure"))?;
     let mut countries_vector = vec![];

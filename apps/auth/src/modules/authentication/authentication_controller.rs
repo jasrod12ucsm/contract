@@ -6,7 +6,26 @@ use crate::{
             renew_token_dto::RenewTokenDto,
         },
         models::{
-            email_sended::EmailSended, login_result::LoginResult, renew_result::RenewResult,
+            email_sended::EmailSended,
+            login_by_token::{
+                filter_login_by_token::FilterLoginByTokenResetToken,
+                push_login_by_token::{
+                    PushLoginByTokenResetToken, PushLoginByTokenResetTokenDevice,
+                },
+                set_login_by_token::SetLoginByTokenResetToken,
+            },
+            login_client::{
+                filter_login_client::FilterLoginClientResetToken,
+                push_login_client::{PushLoginClientResetToken, PushLoginClientResetTokenDevice},
+                set_login_client::SetLoginClientResetToken,
+            },
+            login_result::LoginResult,
+            renew::{filter_renew::FilterRenewResetToken, set_renew::SetRenewResetToken},
+            renew_result::RenewResult,
+            resend_email::{
+                filter_resend_email::FilterResendEmailResetToken,
+                update_resend_email::UpdateResendEmailResetToken,
+            },
             user_id::UserId,
         },
     },
@@ -52,22 +71,29 @@ use bod_models::{
             },
         },
     },
-    shared::{bson::to_bson::ToBson, geo_point::GeoPoint, jwt::claims::RenewClaims},
+    shared::{bson::to_bson::ToBson, geo_point::GeoPoint},
 };
 use bson::{oid::ObjectId, DateTime};
 use common::{
     helpers::{
-        env::env::ENV, password::password_functions::PasswordFunctions,
-        smtp::smtp_functions::SmtpFunctions,
+        password::password_functions::PasswordFunctions, smtp::smtp_functions::SmtpFunctions,
     },
     public::models::path::IdPath,
-    utils::ntex_private::{
-        extractors::json::JsonAdvanced,
-        repository::public_repository::{AbstractRepository, PublicRepository},
+    utils::{
+        database::{
+            domain::{
+                database_query::DatabaseQueryTrait, update_definition::UpdateDefinitionTrait,
+                update_query::UpdateQueryTrait,
+            },
+            infrastructure::database_library::{DatabaseQuery, UpdateDefinition},
+        },
+        ntex_private::{
+            extractors::json::JsonAdvanced,
+            repository::public_repository::{AbstractRepository, PublicRepository},
+        },
     },
 };
 
-use jsonwebtoken::{decode, DecodingKey, Validation};
 use mongodb::{bson::doc, options::SelectionCriteria};
 use ntex::{
     util::Either,
@@ -501,17 +527,13 @@ pub async fn resend_email(
     let code = PasswordFunctions::generate_random_number();
     //actualizar la tabla de reset_token con ese random_number
 
-    let filter = doc! {
-        "userId":object_id_path,"noActive":true
-    };
-    let update_doc = doc! {
-        "$set":{
-            "authCode":code
-        }
-    };
     println!("anets de transaccion");
     let _reset_token_insertion = reset_token_repository
-        .update_one(filter, update_doc)
+        .update_one(
+            DatabaseQuery::update()
+                .filter(FilterResendEmailResetToken::new(object_id_path))
+                .update(UpdateDefinition::default().set(UpdateResendEmailResetToken::new(code))),
+        )
         .await
         .map_err(|_| ResetTokenError::GetTokenError("critical error is passing"))?;
     //ahora genera el html
@@ -703,17 +725,18 @@ pub async fn login_client(
         .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
     if mac_in_devices.is_none() {
         if num_devices < 2 {
-            let update_doc = doc! {
-                "$push": {
-                    "devices": {
-                        "os": os.as_str(),
-                        "mac": mac.as_str(),
-                        "token": reset_token.as_str()
-                    }
-                }
-            };
             let result = reset_token_repository
-                .update_one(doc! {"userId": user.id,"noActive":true}, update_doc)
+                .update_one(
+                    DatabaseQuery::update()
+                        .filter(FilterLoginClientResetToken::new(user.id))
+                        .update(UpdateDefinition::default().push(PushLoginClientResetToken {
+                            devices: vec![PushLoginClientResetTokenDevice {
+                                os: os,
+                                mac: mac,
+                                token: reset_token.clone(),
+                            }],
+                        })),
+                )
                 .await
                 .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
             if result.matched_count < 1 {
@@ -729,21 +752,19 @@ pub async fn login_client(
     } else {
         let mac_by_device = mac_in_devices.unwrap().mac.as_str();
         //actualizar refresh token
-        let filter = doc! {
-            "userId": user.id,"noActive":true
-        };
         let reset_token = generate_refresh_jwt(os.as_str(), user.id)
             .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         // Documento de actualización con array filter
-        let update_doc = doc! {
-            "$set": {
-                "devices.$[d].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
-                "devices.$[d].os": os,
-            }
-        };
         let array_filters = vec![doc! { "d.mac": { "$eq": mac_by_device } }];
         let result = reset_token_repository
-            .update_one(filter, update_doc)
+            .update_one(
+                DatabaseQuery::update()
+                    .filter(FilterLoginClientResetToken::new(user.id))
+                    .update(UpdateDefinition::default().set(SetLoginClientResetToken {
+                        token: reset_token.clone(),
+                        os: os,
+                    })),
+            )
             .array_filters(array_filters)
             .await
             .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
@@ -815,17 +836,20 @@ pub async fn login_by_token(
         let reset_token = generate_refresh_jwt(os.as_str(), user.id)
             .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         if num_devices < 2 {
-            let update_doc = doc! {
-                "$push": {
-                    "devices": {
-                        "os": os.as_str(),
-                        "mac": mac.as_str(),
-                        "token": reset_token.as_str()
-                    }
-                }
-            };
             reset_token_repository
-                .update_one(doc! {"userId": user.id}, update_doc)
+                .update_one(
+                    DatabaseQuery::update()
+                        .filter(FilterLoginByTokenResetToken::new(user.id))
+                        .update(
+                            UpdateDefinition::default().push(PushLoginByTokenResetToken {
+                                devices: vec![PushLoginByTokenResetTokenDevice {
+                                    os: os,
+                                    mac: mac,
+                                    token: reset_token.clone(),
+                                }],
+                            }),
+                        ),
+                )
                 .await
                 .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
             let short_user_config: ShortUserConfig = user_config.into();
@@ -838,21 +862,19 @@ pub async fn login_by_token(
     } else {
         let mac_by_device = mac_in_devices.unwrap().mac.as_str();
         //actualizar refresh token
-        let filter = doc! {
-            "userId": user.id,"noActive":true
-        };
         let reset_token = generate_refresh_jwt(os.as_str(), user.id)
             .map_err(|_| UserConfigError::LoginUserError("Error al generar nuevo token"))?;
         // Documento de actualización con array filter
-        let update_doc = doc! {
-            "$set": {
-                "devices.$[d].token": reset_token.clone(), // Actualiza el token del dispositivo que coincide
-                "devices.$[d].os": os,
-            }
-        };
         let array_filters = vec![doc! { "d.mac": { "$eq": mac_by_device } }];
         let result = reset_token_repository
-            .update_one(filter, update_doc)
+            .update_one(
+                DatabaseQuery::update()
+                    .filter(FilterLoginClientResetToken::new(user.id))
+                    .update(UpdateDefinition::default().set(SetLoginByTokenResetToken {
+                        token: reset_token.clone(),
+                        os: os,
+                    })),
+            )
             .array_filters(array_filters)
             .await
             .map_err(|_| UserConfigError::LoginUserError("internal error"))?;
@@ -898,13 +920,18 @@ pub async fn renew(
         refresh_token = generate_refresh_jwt(os.to_owned().as_str(), id)
             .map_err(|_| ResetTokenError::UpdateTokenError("error generating token"))?;
         //actualizar en base de datos
-        let filter = doc! {"userId":id};
-        let update = doc! {"$set":{
-            "devices.$[device].token":refresh_token.clone()
-        }};
         let array_filter = doc! {"device.os":os};
         let _ = reset_token_repository
-            .update_one(filter, update)
+            .update_one(
+                DatabaseQuery::update()
+                    .filter(FilterRenewResetToken::new(id))
+                    .update(
+                        UpdateDefinition::default()
+                            .set(SetRenewResetToken{
+                                token:refresh_token.clone(),
+                            }),
+                    ),
+            )
             .array_filters(vec![array_filter])
             .await
             .map_err(|_| ResetTokenError::UpdateTokenError("sistema operativo no aceptado"))?;

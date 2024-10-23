@@ -1,12 +1,25 @@
 use bson::{doc, oid::ObjectId, Bson, DateTime, Document};
+use compilation_procedure::{Database, ToInsert, WithId};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::schemas::mst::product_category::models::short_product_category::ShortProductCategory;
-
 use super::models::{product_to_store::ProductToStore, product_to_warehouse::ProductToWarehouse};
+use crate::schemas::mst::product_category::models::short_product_category::ShortProductCategory;
+use crate::shared::bson::to_document::ToDocument;
+use crate::shared::index_functions::IndexFunctions;
+use crate::shared::schema::{BaseColleccionNames, Schema};
+use async_trait::async_trait;
+use bson::ser::Error;
+use mongodb::results::CreateIndexesResult;
+use mongodb::{Client, IndexModel,options::IndexOptions};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Builder)]
+#[derive(Serialize, Deserialize, Debug, Clone, Builder, ToInsert, WithId, Database)]
+#[database(database = "bod", collection = "mst-product")]
+#[index(
+    keys = "name:1, isDeleted:1, isActive:1",
+    unique = false,
+    name = "name_isDeleted_isActive"
+)]
 pub struct Product {
     #[serde(rename = "_id")]
     pub id: String, //example
@@ -55,4 +68,3 @@ pub struct Product {
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime,
 }
-

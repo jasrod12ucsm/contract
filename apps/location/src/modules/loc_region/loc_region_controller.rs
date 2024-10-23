@@ -1,20 +1,28 @@
 use std::vec;
 
 use bod_models::schemas::location::region::{
-    models::region_with_id::RegionWithId, region_attributes::RegionAttributes, region_errors::RegionError
+    models::region_with_id::RegionWithId, region_attributes::RegionAttributes,
+    region_errors::RegionError,
 };
 use bson::doc;
 use common::{
     helpers::env::env::ENV,
-    utils::ntex_private::{
-        extractors::json::JsonAdvanced,
-        repository::public_repository::{AbstractRepository, PublicRepository},
+    utils::{
+        database::{
+            domain::{database_query::DatabaseQueryTrait, filter_query::FilterQueryTrait},
+            infrastructure::database_library::DatabaseQuery,
+        },
+        ntex_private::{
+            extractors::json::JsonAdvanced,
+            repository::public_repository::{AbstractRepository, PublicRepository},
+        },
     },
 };
 use futures::StreamExt;
 use ntex::web::{self, types::Path};
 
 use crate::{
+    modules::loc_region::models::region_by_country_code::filter_region_by_country_code::FilterRegionByCountryCodeRegion,
     public::interfaces::RegionGeneratePath,
     utils::{
         infraestructure::{
@@ -64,10 +72,8 @@ pub async fn create_region(
             "$set":bson::to_bson(&region).unwrap()
         };
         let region_inserted = region_repository
-            .find_one_and_update(
-                doc! {"code":region.code},
-                document_to_insert_region,
-            ).upsert(true)
+            .find_one_and_update(doc! {"code":region.code}, document_to_insert_region)
+            .upsert(true)
             .await
             .map_err(|err| RegionError::CreateRegionError(err.to_string()))?;
         if region_inserted.is_none() {
@@ -88,14 +94,12 @@ pub async fn get_all_regions(
     let region_repository: RegionRepository = repo
         .get_repository::<RegionRepository>()
         .await
-        .map_err(|_| {
-            RegionError::GetRegionsError("code error, contact with the tecnical team")
-        })?;
-    let mut regions =
-        region_repository.get_all().await.map_err(|_| {
-            RegionError::GetRegionsError("code error, contact with the tecnical team")
-        })?;
-    let mut vec_regions=vec![];
+        .map_err(|_| RegionError::GetRegionsError("code error, contact with the tecnical team"))?;
+    let mut regions = region_repository
+        .get_all()
+        .await
+        .map_err(|_| RegionError::GetRegionsError("code error, contact with the tecnical team"))?;
+    let mut vec_regions = vec![];
     while let Some(region) = regions.next().await {
         if region.is_err() {
             return Err(RegionError::GetRegionsError(
@@ -119,15 +123,17 @@ pub async fn get_region_by_country_code(
     let region_repository: RegionRepository = repo
         .get_repository::<RegionRepository>()
         .await
-        .map_err(|_| {
-            RegionError::GetRegionsError("code error, contact with the tecnical team")
-        })?;
-    let mut regions = region_repository.find(doc! {"countryId":country_code,"noDeleted":true})
+        .map_err(|_| RegionError::GetRegionsError("code error, contact with the tecnical team"))?;
+    let mut regions = region_repository
+        .find(
+            DatabaseQuery::find().filter(FilterRegionByCountryCodeRegion {
+                country_id:country_code,
+                no_deleted: true,
+            }),
+        )
         .await
-        .map_err(|_| {
-            RegionError::GetRegionsError("code error, contact with the tecnical team")
-        })?;
-    let mut vec_regions=vec![];
+        .map_err(|_| RegionError::GetRegionsError("code error, contact with the tecnical team"))?;
+    let mut vec_regions = vec![];
     while let Some(region) = regions.next().await {
         if region.is_err() {
             return Err(RegionError::GetRegionsError(
