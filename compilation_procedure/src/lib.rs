@@ -257,7 +257,7 @@ pub fn derive_database(input: TokenStream) -> TokenStream {
                               .map(|s| {
                                 let mut parts = s.split(':');
                                 let key = parts.next().unwrap().trim().to_string();
-                                let value:String = parts.next().unwrap().trim().parse().unwrap();
+                                let value:i32= parts.next().unwrap().trim().parse().unwrap();
                                 (key, value)
                             })
                             .collect();

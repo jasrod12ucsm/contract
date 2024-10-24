@@ -1,0 +1,29 @@
+[package]
+name = "contract"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mongodb = { version = "3.0.1", features = ["snappy-compression"] }
+ntex = { version = "2.0.1", features = ["tokio"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+validator = { version = "0.18.1", features = ["derive"] }
+lazy_static = "1.4.0"
+tokio ="1.38.1"
+async-trait = "0.1"
+bson = "2.11.0"
+futures = "0.3.17"
+jsonwebtoken = "9.3.0"
+reqwest = { version = "0.12.5", features = ["blocking", "json"] }
+tzf-rs = "0.4.9"
+common={path = "../../common"}
+bod_models={path = "../../bod_models"}
+compilation_procedure={path = "../../compilation_procedure"}
+ntex-cors = "2.0.0"
+chrono = "0.4.38"
+printpdf = "0.7.0"
+derive_builder = "0.20.1"
+ed25519-dalek = "2.1.1"
+rand = "0.8"
+hex = "0.4"

@@ -83,7 +83,7 @@ pub trait AbstractRepository<T: Serialize + Send + Sync, U: Serialize + Send + S
     fn insert_one(&self, item: T) -> InsertOne;
     fn find_one(
         &self,
-        filter: mongodb::bson::Document,
+        filter: FindQuery,
     ) -> FindOne<U>;
     fn find_one_and_update(
         &self,
@@ -119,36 +119,37 @@ where
 
     fn find_one(
         &self,
-        mut filter: mongodb::bson::Document,
+        filter: FindQuery,
     ) -> FindOne<U> {
-        let has_is_deleted = filter.contains_key("isDeleted");
-        let has_is_active = filter.contains_key("isActive");
-        let has_no_deleted = filter.contains_key("noDeleted");
-        let has_no_active = filter.contains_key("noActive");
+        let mut filter=filter.create_filter_doc();
+        let has_is_deleted = filter.contains_key("is_deleted");
+        let has_is_active = filter.contains_key("is_active");
+        let has_no_deleted = filter.contains_key("no_deleted");
+        let has_no_active = filter.contains_key("no_active");
 
-        // If neither "isDeleted" nor "isActive" are present, add default values
+        // If neither "is_Deleted" nor "isActive" are present, add default values
         if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
-            filter.insert("isDeleted", false);
-            filter.insert("isActive", true);
+            filter.insert("is_deleted", false);
+            filter.insert("is_active", true);
         } else {
-            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            // If "is_Deleted" is not present and "noDeleted" is not present, add the default value
             if !has_is_deleted && !has_no_deleted {
-                filter.insert("isDeleted", false);
+                filter.insert("is_deleted", false);
             }
             // If "isActive" is not present and "noActive" is not present, add the default value
             if !has_is_active && !has_no_active {
-                filter.insert("isActive", true);
+                filter.insert("is_active", true);
             }
         }
 
         // Remove "noDeleted" and "noActive" from the filter if they exist
         if has_no_deleted {
-            filter.remove("noDeleted");
+            filter.remove("no_deleted");
         }
         if has_no_active {
-            filter.remove("noActive");
+            filter.remove("no_active");
         }
-        println!("Filter: {:?}", filter);
+        println!("Filter: {}", filter);
         let collection = self.get_collection_for_id();
         collection.find_one(filter).selection_criteria(SelectionCriteria::ReadPreference(ReadPreference::PrimaryPreferred { options: None }))
     }
@@ -158,32 +159,32 @@ where
         mut filter: mongodb::bson::Document,
         mut update: mongodb::bson::Document,
     ) -> FindOneAndUpdate<U> {
-        let has_is_deleted = filter.contains_key("isDeleted");
-        let has_is_active = filter.contains_key("isActive");
-        let has_no_deleted = filter.contains_key("noDeleted");
-        let has_no_active = filter.contains_key("noActive");
+        let has_is_deleted = filter.contains_key("is_deleted");
+        let has_is_active = filter.contains_key("is_active");
+        let has_no_deleted = filter.contains_key("no_deleted");
+        let has_no_active = filter.contains_key("no_active");
 
-        // If neither "isDeleted" nor "isActive" are present, add default values
+        // If neither "is_Deleted" nor "isActive" are present, add default values
         if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
-            filter.insert("isDeleted", false);
-            filter.insert("isActive", true);
+            filter.insert("is_deleted", false);
+            filter.insert("is_active", true);
         } else {
-            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            // If "is_Deleted" is not present and "noDeleted" is not present, add the default value
             if !has_is_deleted && !has_no_deleted {
-                filter.insert("isDeleted", false);
+                filter.insert("is_deleted", false);
             }
             // If "isActive" is not present and "noActive" is not present, add the default value
             if !has_is_active && !has_no_active {
-                filter.insert("isActive", true);
+                filter.insert("is_active", true);
             }
         }
 
         // Remove "noDeleted" and "noActive" from the filter if they exist
         if has_no_deleted {
-            filter.remove("noDeleted");
+            filter.remove("no_deleted");
         }
         if has_no_active {
-            filter.remove("noActive");
+            filter.remove("no_active");
         }
 
         let collection = self.get_collection_for_id();
@@ -191,10 +192,10 @@ where
         if let Ok(set_doc) = update.get_document_mut("$set") {
             set_doc.insert("updatedAt", now);
         } else {
-            update.insert("$set", doc! {"updatedAt": now});
+            update.insert("$set", doc! {"updated_at": now});
         }
 
-        update.insert("$setOnInsert", doc! {"createdAt": now});
+        update.insert("$setOnInsert", doc! {"created_at": now});
         println!("filter: {}", filter);
         println!("update: {}", update);
         let document = collection
@@ -207,43 +208,47 @@ where
         &self,
         update_query: UpdateQuery,
     ) -> Update {
+        println!("{:?}",update_query);
         let mut filter =update_query.create_filter_doc();
         let mut update=update_query.create_update_doc();
-        let has_is_deleted = filter.contains_key("isDeleted");
-        let has_is_active = filter.contains_key("isActive");
-        let has_no_deleted = filter.contains_key("noDeleted");
-        let has_no_active = filter.contains_key("noActive");
+        println!("Update: {}", update);
+        let has_is_deleted = filter.contains_key("is_deleted");
+        let has_is_active = filter.contains_key("is_active");
+        let has_no_deleted = filter.contains_key("no_deleted");
+        let has_no_active = filter.contains_key("no_active");
 
-        // If neither "isDeleted" nor "isActive" are present, add default values
+        // If neither "is_Deleted" nor "isActive" are present, add default values
         if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
-            filter.insert("isDeleted", false);
-            filter.insert("isActive", true);
+            filter.insert("is_deleted", false);
+            filter.insert("is_active", true);
         } else {
-            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            // If "is_Deleted" is not present and "noDeleted" is not present, add the default value
             if !has_is_deleted && !has_no_deleted {
-                filter.insert("isDeleted", false);
+                filter.insert("is_deleted", false);
             }
             // If "isActive" is not present and "noActive" is not present, add the default value
             if !has_is_active && !has_no_active {
-                filter.insert("isActive", true);
+                filter.insert("is_active", true);
             }
         }
 
         // Remove "noDeleted" and "noActive" from the filter if they exist
         if has_no_deleted {
-            filter.remove("noDeleted");
+            filter.remove("no_deleted");
         }
         if has_no_active {
-            filter.remove("noActive");
+            filter.remove("no_active");
         }
 
         let collection = self.get_collection_for_id();
         let now = DateTime::now();
         if let Ok(set_doc) = update.get_document_mut("$set") {
-            set_doc.insert("updatedAt", now);
+            set_doc.insert("updated_at", now);
         } else {
-            update.insert("$set", doc! {"updatedAt": now});
+            update.insert("$set", doc! {"updated_at": now});
         }
+        println!("Filter: {}", filter);
+        println!("Update: {}", update);
         let document = collection.update_one(filter, update);
         document
     }
@@ -256,33 +261,33 @@ where
 
     fn find(&self,filter: FindQuery) -> mongodb::action::Find<'_, U> {
         let mut filter=filter.create_filter_doc();
-        // Check if "isDeleted" or "isActive" are present in the filter
-        let has_is_deleted = filter.contains_key("isDeleted");
-        let has_is_active = filter.contains_key("isActive");
-        let has_no_deleted = filter.contains_key("noDeleted");
-        let has_no_active = filter.contains_key("noActive");
+        // Check if "is_Deleted" or "isActive" are present in the filter
+        let has_is_deleted = filter.contains_key("is_Deleted");
+        let has_is_active = filter.contains_key("is_active");
+        let has_no_deleted = filter.contains_key("no_deleted");
+        let has_no_active = filter.contains_key("no_active");
 
-        // If neither "isDeleted" nor "isActive" are present, add default values
+        // If neither "is_Deleted" nor "isActive" are present, add default values
         if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
-            filter.insert("isDeleted", false);
-            filter.insert("isActive", true);
+            filter.insert("is_deleted", false);
+            filter.insert("is_active", true);
         } else {
-            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            // If "is_Deleted" is not present and "noDeleted" is not present, add the default value
             if !has_is_deleted && !has_no_deleted {
-                filter.insert("isDeleted", false);
+                filter.insert("is_deleted", false);
             }
             // If "isActive" is not present and "noActive" is not present, add the default value
             if !has_is_active && !has_no_active {
-                filter.insert("isActive", true);
+                filter.insert("is_active", true);
             }
         }
 
         // Remove "noDeleted" and "noActive" from the filter if they exist
         if has_no_deleted {
-            filter.remove("noDeleted");
+            filter.remove("no_deleted");
         }
         if has_no_active {
-            filter.remove("noActive");
+            filter.remove("no_active");
         }
         println!("Filter: {:?}", filter);
         let collection: &Collection<U> = self.get_collection_for_id();
@@ -298,19 +303,19 @@ where
     where
         J: Serialize + DeserializeOwned + Unpin + Send + Sync,
     {
-        let has_is_deleted = filter.contains_key("isDeleted");
+        let has_is_deleted = filter.contains_key("is_Deleted");
         let has_is_active = filter.contains_key("isActive");
         let has_no_deleted = filter.contains_key("noDeleted");
         let has_no_active = filter.contains_key("noActive");
 
-        // If neither "isDeleted" nor "isActive" are present, add default values
+        // If neither "is_Deleted" nor "isActive" are present, add default values
         if !has_is_deleted && !has_is_active && !has_no_deleted && !has_no_active {
-            filter.insert("isDeleted", false);
+            filter.insert("is_Deleted", false);
             filter.insert("isActive", true);
         } else {
-            // If "isDeleted" is not present and "noDeleted" is not present, add the default value
+            // If "is_Deleted" is not present and "noDeleted" is not present, add the default value
             if !has_is_deleted && !has_no_deleted {
-                filter.insert("isDeleted", false);
+                filter.insert("is_Deleted", false);
             }
             // If "isActive" is not present and "noActive" is not present, add the default value
             if !has_is_active && !has_no_active {

@@ -1,5 +1,6 @@
+
 use lettre::{
-    message::{header::ContentType, Mailbox},
+    message::{header::ContentType, Attachment, Mailbox, MultiPart, SinglePart},
     transport::smtp::{
         authentication::Credentials,
         client::{Tls, TlsParameters},
@@ -12,7 +13,12 @@ use crate::helpers::env::env::ENV;
 pub struct SmtpFunctions;
 
 impl SmtpFunctions {
-    pub fn send_email(to: &str, subject: &str, body: &str) -> Result<(), &'static str> {
+    pub fn send_email(
+        to: &str,
+        subject: &str,
+        body: &str,
+        cursor: Vec<u8>,
+    ) -> Result<(), &'static str> {
         //let email
         //TODO ponerlo en el env
         let to_address_data = to.split("@").collect::<Vec<&str>>();
@@ -32,19 +38,30 @@ impl SmtpFunctions {
         let name = address_data.get(0).ok_or("error to get address name")?;
         let domain = address_data.get(1).ok_or("error to get address domain")?;
         let address = Address::new(*name, *domain).map_err(|_| "error to construct address")?;
+        let atachement = Attachment::new("contract.pdf".to_string()).body(
+            cursor,
+            ContentType::parse(mime::APPLICATION_PDF.to_string().as_str()).unwrap(),
+        );
         let email = Message::builder()
             .from(Mailbox::new(None, address))
             .to(Mailbox::new(None, to_address))
             .subject(subject)
-            .header(ContentType::TEXT_HTML)
-            .body(String::from(body))
+            .multipart(
+                MultiPart::mixed()
+                    .singlepart(SinglePart::builder().header(ContentType::TEXT_HTML).body(String::from(body)))
+                    .singlepart(atachement),
+            )
             .map_err(|_| "error in message")?;
         let creds = Credentials::new((*name).to_string(), enterprise_password);
         let mailer = SmtpTransport::relay("smtp.gmail.com")
             .unwrap()
             .port(465)
             .credentials(creds)
-            .tls(Tls::Wrapper(TlsParameters::builder("smtp.gmail.com".to_string()).build().map_err(|_| "error on tls")?))
+            .tls(Tls::Wrapper(
+                TlsParameters::builder("smtp.gmail.com".to_string())
+                    .build()
+                    .map_err(|_| "error on tls")?,
+            ))
             .build();
         match mailer.send(&email) {
             Ok(_) => return Ok(()),

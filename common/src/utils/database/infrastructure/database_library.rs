@@ -12,13 +12,13 @@ impl DatabaseQueryTrait for DatabaseQuery {
     fn update() -> UpdateQuery {
         UpdateQuery::default()
     }
-    
-    fn find()-> FindQuery {
+
+    fn find() -> FindQuery {
         FindQuery::default()
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct UpdateQuery {
     filter: Document,
     update: Option<UpdateDefinition>,
@@ -28,7 +28,7 @@ pub struct FindQuery {
     filter: Document,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct UpdateDefinition {
     set: Option<Document>,
     push: Option<Document>,
@@ -47,9 +47,23 @@ impl UpdateDefinitionTrait for UpdateDefinition {
 
     fn construct(&self) -> Document {
         let mut docu = Document::new();
-        if self.set.is_some() {
-            docu.insert("$set", self.set.to_owned());
+
+        // Agrega el documento de set si existe
+        if let Some(ref set) = self.set {
+            // Combina el contenido de $set en el documento
+            for (key, value) in set.iter() {
+                docu.insert(key.clone(), value.clone());
+            }
         }
+
+        // Agrega el documento de push si existe
+        if let Some(ref push) = self.push {
+            // Combina el contenido de $push en el documento
+            for (key, value) in push.iter() {
+                docu.insert(key.clone(), value.clone());
+            }
+        }
+
         docu
     }
 

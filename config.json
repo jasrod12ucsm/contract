@@ -4,9 +4,11 @@
   "LOCATION_PORT":8001,
   "MASTER_PORT":8002,
   "CONFIGURATION_PORT":8003,
+  "CONTRACT_PORT":8005,
   "SALT_KEY": [
     25, 92, 86, 80, 151, 7, 17, 206, 119, 46, 40, 226, 13, 103, 46, 135
   ],
+  "CIF_KEY":"9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
   "SECRET_KEY": "Hdsadonas@fdnoSNFIOFNb3219fdujiadsfcxgDS",
   "SECRET_KEY_REFRESH": "Hdsadonas@fdnoSNFIOFNb3219fduji",
   "DATABASE_URL": "mongodb+srv://jason:123546@cluster0.dt48hpt.mongodb.net/",

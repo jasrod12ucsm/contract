@@ -2,7 +2,6 @@ use bod_models::shared::{
     errors::{BadRequestError, ErrorGenerate},
     jwt::claims::DefaultClaims,
 };
-use bson::oid::ObjectId;
 use jsonwebtoken::{DecodingKey, Validation};
 use ntex::{
     http::header,
@@ -11,6 +10,8 @@ use ntex::{
 };
 
 use crate::helpers::env::env::ENV;
+
+use super::date_contract_structure::DateContractStructure;
 
 pub struct VerifyToken;
 
@@ -69,9 +70,9 @@ where
                 ));
             }
         };
-        let uid = decoded_token.claims.user();
+        let contract:DateContractStructure = decoded_token.claims.into();
 
-        req.extensions_mut().insert::<ObjectId>(uid.to_owned());
+        req.extensions_mut().insert::<DateContractStructure>(contract);
         let res = ctx.call(&self.service, req).await?;
         Ok(res)
     }
