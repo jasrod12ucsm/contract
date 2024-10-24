@@ -22,3 +22,4 @@ Sigue los pasos para instalar Rust en tu sistema:
 3. **Ejecuta microservicio**;
     ```bash
     cargo run -p <microservicio>
+# contract
