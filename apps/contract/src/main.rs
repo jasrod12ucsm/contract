@@ -22,6 +22,10 @@ use tzf_rs::DefaultFinder;
 lazy_static! {
     static ref FINDER: DefaultFinder = DefaultFinder::new();
 }
+#[web::get("/")]
+async fn hello() -> impl web::Responder {
+    web::HttpResponse::Ok().body("Hello world!")
+}
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
@@ -49,9 +53,7 @@ async fn main() -> std::io::Result<()> {
     let collections = vec![user_schema];
     let collections = Collection::new(client, collections);
     collections.run_indexes().await;
-    let ipv4 = IpFunctions::get_local_ipv4().expect("no ip").to_string();
     //aqui nos traemos los repositorios
-    println!("Server initialized on port {} and ip {}", port, ipv4);
     web::HttpServer::new(move || {
         web::App::new()
             .wrap(
@@ -62,9 +64,10 @@ async fn main() -> std::io::Result<()> {
                     .finish(),
             )
             .state(public_repository.clone()).state(private_key.clone())
+            .service(hello)
             .service(scope("/contract").configure(contract_scope))
     })
-    .bind(("0.0.0.0", port))? //TODO poner puerto en envieronment
+    .bind(("0.0.0.0", 80))? //TODO poner puerto en envieronment
     .run()
     .await
 }
