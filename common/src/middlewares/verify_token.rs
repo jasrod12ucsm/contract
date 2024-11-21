@@ -70,6 +70,7 @@ where
                 ));
             }
         };
+        println!("{:?}",decoded_token.claims);
         let contract:DateContractStructure = decoded_token.claims.into();
 
         req.extensions_mut().insert::<DateContractStructure>(contract);

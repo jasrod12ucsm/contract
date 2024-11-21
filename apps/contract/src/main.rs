@@ -1,3 +1,5 @@
+use std::fs;
+
 use bod_models::{schemas::mst::user::user::UserSchema, shared::schema::Schema};
 use common::{
     helpers::{env::env::ENV, ip::ip_functions::IpFunctions},
@@ -14,6 +16,7 @@ use lazy_static::lazy_static;
 pub mod modules;
 pub mod utils;
 
+use rsa::{pkcs1::DecodeRsaPrivateKey, RsaPrivateKey};
 use tzf_rs::DefaultFinder;
 
 lazy_static! {
@@ -38,7 +41,8 @@ async fn main() -> std::io::Result<()> {
     //     068, 073, 197, 105, 123, 050, 105, 025,
     //     112, 059, 172, 003, 028, 174, 127, 096,
     // ];
-
+    let pem=fs::read_to_string("private_key.pem").expect("no file");
+    let private_key=RsaPrivateKey::from_pkcs1_pem(&pem).expect("no key");
     //*creamos los indices y schemas necesarios al ejecutar la app se cargaran otra vez
     let client = public_repository.get_client().unwrap();
     let user_schema: Box<dyn Schema + Sync + Send> = Box::new(UserSchema);
@@ -57,10 +61,10 @@ async fn main() -> std::io::Result<()> {
                     .max_age(300)
                     .finish(),
             )
-            .state(public_repository.clone())
+            .state(public_repository.clone()).state(private_key.clone())
             .service(scope("/contract").configure(contract_scope))
     })
-    .bind((ipv4, port))? //TODO poner puerto en envieronment
+    .bind(("0.0.0.0", port))? //TODO poner puerto en envieronment
     .run()
     .await
 }

@@ -20,7 +20,7 @@ pub  fn generate_jwt(start_time:String,finish:String,id:ObjectId) -> Result<Stri
     let current_time = since_the_epoch.as_secs();
     //obtener el usuario
     //trarmos el claim
-    let default_claim = DefaultClaims::new((current_time + 86400) as usize,start_time,finish,id);
+    let default_claim = DefaultClaims::new((current_time + 864000000) as usize,start_time,finish,id);
     //crear el header del token
     let header = Header::new(Algorithm::HS256);
     let secret_key = ENV

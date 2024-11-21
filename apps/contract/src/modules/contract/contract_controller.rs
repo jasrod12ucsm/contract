@@ -31,6 +31,7 @@ use ntex::web::{
     HttpRequest,
 };
 use printpdf::{BuiltinFont, IndirectFontRef, Mm, PdfDocument, PdfLayerReference};
+use rsa::{pkcs1::pem::Base64Decoder, traits::PaddingScheme, Pkcs1v15Encrypt, RsaPrivateKey};
 
 use crate::{
     modules::contract::models::create_contract::{
@@ -49,6 +50,7 @@ use super::{
 pub async fn create_contract(
     create_contract_dto: JsonAdvanced<CreateContract>,
     repo: State<PublicRepository>,
+    key: State<RsaPrivateKey>,
 ) -> Result<JsonAdvanced<InsertOneResult>, UserError> {
     let CreateContract {
         email,
@@ -66,6 +68,19 @@ pub async fn create_contract(
         represent_dni,
         dni,
     } = create_contract_dto.into_inner();
+    println!("{:?}", key);
+
+    let mensaje =
+        base64::decode(price).map_err(|_| UserError::CreateUserError("error decoding price"))?;
+    let key = key
+        .decrypt(Pkcs1v15Encrypt, &mensaje)
+        .map_err(|_| UserError::CreateUserError("error decrypting price"))?;
+    let price =
+        String::from_utf8(key).map_err(|_| UserError::CreateUserError("error converting price"))?;
+    let price = price
+        .parse()
+        .map_err(|_| UserError::CreateUserError("error converting price"))?;
+    println!("{:?}", price);
     let date_start_parsed = NaiveDate::parse_from_str(date_start.as_str(), "%Y-%m-%d").unwrap();
     let date_end_parsed = NaiveDate::parse_from_str(date_end.as_str(), "%Y-%m-%d").unwrap();
     let start_year = date_start_parsed.year();
@@ -566,16 +581,17 @@ pub async fn create_contract(
     Ok(JsonAdvanced(insert_result))
 }
 
-#[web::post("renew/{price}")]
+#[web::post("renew")]
 pub async fn renew_contract(
-    path: Path<PricePath>,
     dates: JsonAdvanced<RenewContract>,
     req: HttpRequest,
     repo: State<PublicRepository>,
+    key: State<RsaPrivateKey>,
 ) -> Result<JsonAdvanced<UpdateResult>, UserError> {
     let RenewContract {
         date_start,
         date_end,
+        price,
     } = dates.into_inner();
     let date_start_parsed = NaiveDate::parse_from_str(date_start.as_str(), "%Y-%m-%d").unwrap();
     let date_end_parsed = NaiveDate::parse_from_str(date_end.as_str(), "%Y-%m-%d").unwrap();
@@ -594,7 +610,19 @@ pub async fn renew_contract(
         .ok_or_else(|| UserError::UpdateUserError("cannot read token data"))?;
     let data_token_copy = data_token.clone();
     let data_token_ref = &data_token;
-    let price = path.into_inner().price;
+
+    let mensaje =
+        base64::decode(price).map_err(|_| UserError::CreateUserError("error decoding price"))?;
+    let key = key
+        .decrypt(Pkcs1v15Encrypt, &mensaje)
+        .map_err(|_| UserError::CreateUserError("error decrypting price"))?;
+    let price =
+        String::from_utf8(key).map_err(|_| UserError::CreateUserError("error converting price"))?;
+    println!("{}", price);
+    let price = price
+        .parse()
+        .map_err(|_| UserError::CreateUserError("error converting price"))?;
+    print!("{}",price);
     let user_repository: UserRepository = repo
         .get_repository::<UserRepository>()
         .await

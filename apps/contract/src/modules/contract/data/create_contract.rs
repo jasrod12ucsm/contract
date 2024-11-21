@@ -9,7 +9,7 @@ pub struct CreateContract{
     pub role:String,
     pub birthdate:String,
     pub email:String,
-    pub price:f64,
+    pub price:String,
     pub date_start:String,
     pub date_end:String,
     pub enterprise_name:String,

@@ -5,4 +5,5 @@ use validator::Validate;
 pub struct RenewContract {
     pub date_start: String,
     pub date_end: String,
+    pub price: String,
 }
