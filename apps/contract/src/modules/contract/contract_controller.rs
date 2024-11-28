@@ -98,17 +98,6 @@ pub async fn create_contract(
     let user = user_repository
         .find_one(DatabaseQuery::find().filter(FilterUserExist {
             or: vec![
-                UserFilter::Name { name: name.clone() },
-                UserFilter::Surnames {
-                    surnames: surnames.clone(),
-                },
-                UserFilter::Address {
-                    address: address.clone(),
-                },
-                UserFilter::Role { role: role.clone() },
-                UserFilter::Birthdate {
-                    birthdate: birthdate.clone(),
-                },
                 UserFilter::Email {
                     email: email.clone(),
                 },
@@ -547,17 +536,6 @@ pub async fn create_contract(
                 .update(UpdateDefinition::default().push(contrato))
                 .filter(FilterUserExist {
                     or: vec![
-                        UserFilter::Name { name: name.clone() },
-                        UserFilter::Surnames {
-                            surnames: surnames.clone(),
-                        },
-                        UserFilter::Address {
-                            address: address.clone(),
-                        },
-                        UserFilter::Role { role: role.clone() },
-                        UserFilter::Birthdate {
-                            birthdate: birthdate.clone(),
-                        },
                         UserFilter::Email {
                             email: email.clone(),
                         },
