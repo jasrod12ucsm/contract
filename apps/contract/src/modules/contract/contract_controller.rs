@@ -156,17 +156,6 @@ pub async fn create_contract(
     let user_id = user_repository
         .find_one(DatabaseQuery::find().filter(FilterUserExist {
             or: vec![
-                UserFilter::Name { name: name.clone() },
-                UserFilter::Surnames {
-                    surnames: surnames.clone(),
-                },
-                UserFilter::Address {
-                    address: address.clone(),
-                },
-                UserFilter::Role { role: role.clone() },
-                UserFilter::Birthdate {
-                    birthdate: birthdate.clone(),
-                },
                 UserFilter::Email {
                     email: email.clone(),
                 },
@@ -1041,7 +1030,10 @@ pub async fn renew_contract(
         let _ = document.save(&mut writer);
     }
     let _ = SmtpFunctions::send_email(email.as_str(), "Contract", &template, buffer)
-        .map_err(|_| UserError::CreateUserError("error sending email"))?;
+        .map_err(|_| 
+
+            UserError::CreateUserError("error sending email")
+        )?;
 
     let contrato = ContractBuilder::default()
         .init_date(date_start)
